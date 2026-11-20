@@ -65,8 +65,17 @@ These are host-side checks, not console tests:
 | `main.c` compiles to an `eboot.bin` | pass - 87,456 bytes, clang 18, 8-entry SELF layout |
 | PKG builds and validates | pass - 6,619,136 bytes, `pkg_validate` 28/28 OK |
 | A clean checkout of three files builds the PKG from scratch | pass |
+| Every shell script parses (`bash -n`, and `sh -n` for the initramfs hooks) | pass, 13 scripts |
+| `scripts/build-rootimg.sh` on a synthetic rootfs | pass - image passes all six checks, fully allocated |
+| `scripts/check-image.sh` against an image with `orphan_file` | pass - refuses it, exit 1 |
+| `scripts/check-image.sh` against a sparse image | pass - warns, exit 2 |
+| mke2fs discarding preallocated blocks | measured: 32 MiB reserved -> 4.3 MB after mke2fs -> 32 MiB after a non-sparse copy |
+| No path referenced by any script or doc is missing | pass |
 | PKG installs on a console | **not done** - no hardware |
-| Kernel, rootfs, initramfs builds | **not done** - need sources, ~30 GB and hours |
+| Kernel build (`scripts/build-kernel.sh`) | **not done** - needs the source tree, ~30 GB and hours |
+| Rootfs build (`scripts/build-rootfs.sh`) | **not done** - needs root and debootstrap |
+| Initramfs assembly (`scripts/build-initramfs.sh`) | **not done** - needs the initramfs-ps4 base |
+| Mesa build (`scripts/build-mesa.sh`) | **not done** - needs the PS4 patch set |
 
 ## Reporting a result
 

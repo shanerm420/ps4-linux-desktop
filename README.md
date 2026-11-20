@@ -40,7 +40,8 @@ then re-scans to report what actually went.
 | Inner PFS contents | `eboot.bin`, `libc.prx`, `libSceFios2.prx`, `right.sprx`, `keystone` |
 | PKG size | 6,619,136 bytes - identical to the reference working package |
 | ChromeOS removal rules | 28/28 assertions on a synthetic tree (games, saves and other installs survive) |
-| Image validator | passes a good image, rejects one with `orphan_file` |
+| Image builder | produces an image that passes all six checks, fully allocated |
+| Image validator | rejects an image with `orphan_file`, warns on a sparse one |
 | Hardware detection tool | builds and runs on a normal Linux host |
 
 ## What is NOT verified
@@ -50,7 +51,7 @@ then re-scans to report what actually went.
 - The installer package builds, but with placeholder assets: it is not shippable
   until it carries a real `bzImage`, `initramfs.cpio.gz`, `ps4linux-loader.bin`
   and optionally `rootfs.tar.zst`.
-- Kernel, rootfs image and initramfs have never been built end to end here.
+- Kernel, rootfs and patched Mesa have never been built here.
 
 ## Build
 
@@ -107,7 +108,7 @@ claims those filenames explicitly and backs up anything it finds there.
 
 ```
 pkg/installer/          the two OpenOrbis apps + Makefile
-scripts/                toolchain, kernel, rootfs, initramfs, image and PKG builds
+scripts/                toolchain, kernel, rootfs, Mesa, image, initramfs and PKG builds
 docs/                   architecture, storage layout, recovery, test matrix
 tools/                  hardware detection and ChromeOS removal scanners
 rootfs/                 files installed into the Debian image
@@ -119,6 +120,8 @@ initramfs/              the boot/install function sourced by the initramfs
 | `scripts/get-toolchain.sh` | fetch and verify the OpenOrbis toolchain |
 | `scripts/build-kernel.sh` | one kernel per southbridge, `-march=btver2`, firmware built in |
 | `scripts/build-rootfs.sh` | debootstrap trixie, desktop, Mesa check |
+| `scripts/build-mesa.sh` | patched Mesa into `/opt/ps4-mesa`; refuses without the patch set |
+| `scripts/build-rootimg.sh` | rootfs -> one fully allocated ext4 image, label `-PS4`, validated |
 | `scripts/build-initramfs.sh` | repack the base initramfs with our boot function |
 | `scripts/check-image.sh` | the six properties Multiboot needs, before the console sees it |
 | `scripts/make-pkg.sh` | stage assets, build both PKGs, refuse debug kernels |
@@ -129,11 +132,11 @@ initramfs/              the boot/install function sourced by the initramfs
 
 ### What is deliberately not in the repository
 
-The kernel tree, the Debian rootfs, the disk image, the loader payload and the
-toolchain are all fetched or built, not committed - together they are tens of
-gigabytes. The `.pkg` files are build output. `tools/chromeos-scan` is committed
-as source only; build it with `cc -O2 -Wall -Wextra -o chromeos-scan chromeos-scan.c`
-before running the test script.
+The kernel tree, the Debian rootfs, the disk image, the loader payload, the PS4
+Mesa patch set and the toolchain are all fetched or built, not committed -
+together they are tens of gigabytes. The `.pkg` files are build output.
+`tools/chromeos-scan` and `tools/hwprofile` are committed as source only;
+`build-rootfs.sh` compiles the latter and falls back to the shell version.
 
 ## Licence
 
