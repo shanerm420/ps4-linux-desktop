@@ -91,7 +91,19 @@ else
 fi
 
 echo "== hardware tool + services =="
-install -D -m 0755 "$HERE/../tools/hwprofile" "$ROOT/usr/local/bin/ps4-hwprofile"
+# tools/hwprofile is a compiled binary and is not committed. Build it here; if
+# there is no C compiler on the host, fall back to the shell version, which does
+# the same job from /proc and /sys.
+HW="$HERE/../tools/hwprofile"
+if [ ! -x "$HW" ] && command -v cc >/dev/null; then
+	cc -O2 -Wall -Wextra -o "$HW" "$HERE/../tools/hwprofile.c" \
+		|| { echo "warning: could not build hwprofile.c; using the shell version" >&2; rm -f "$HW"; }
+fi
+if [ -x "$HW" ]; then
+	install -D -m 0755 "$HW" "$ROOT/usr/local/bin/ps4-hwprofile"
+else
+	install -D -m 0755 "$HERE/../tools/hwprofile.sh" "$ROOT/usr/local/bin/ps4-hwprofile"
+fi
 install -D -m 0644 "$HERE/../rootfs/etc/systemd/system/ps4-boot-ro.service" \
 	"$ROOT/etc/systemd/system/ps4-boot-ro.service"
 install -D -m 0644 "$HERE/../rootfs/etc/systemd/system/ps4-hwprofile.service" \
