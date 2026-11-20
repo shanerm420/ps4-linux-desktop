@@ -68,7 +68,9 @@ make clean && make APP=install    # -> IV0000-PS4LNX001_00-PS4LINUXDESKTOP0.pkg
 ```
 
 Clean between the two: `eboot.bin`, `pkg.gp4` and `sce_sys/param.sfo` are shared
-intermediates.
+intermediates. Nothing is committed that the toolchain can supply: the runtime
+modules and the package artwork are copied in at build time, so a checkout is
+three files and a Makefile.
 
 ### Four traps that cost real time
 
@@ -105,12 +107,33 @@ claims those filenames explicitly and backs up anything it finds there.
 
 ```
 pkg/installer/          the two OpenOrbis apps + Makefile
-scripts/                kernel, rootfs, initramfs, image and PKG build scripts
+scripts/                toolchain, kernel, rootfs, initramfs, image and PKG builds
 docs/                   architecture, storage layout, recovery, test matrix
 tools/                  hardware detection and ChromeOS removal scanners
 rootfs/                 files installed into the Debian image
 initramfs/              the boot/install function sourced by the initramfs
 ```
+
+| Path | Purpose |
+|---|---|
+| `scripts/get-toolchain.sh` | fetch and verify the OpenOrbis toolchain |
+| `scripts/build-kernel.sh` | one kernel per southbridge, `-march=btver2`, firmware built in |
+| `scripts/build-rootfs.sh` | debootstrap trixie, desktop, Mesa check |
+| `scripts/build-initramfs.sh` | repack the base initramfs with our boot function |
+| `scripts/check-image.sh` | the six properties Multiboot needs, before the console sees it |
+| `scripts/make-pkg.sh` | stage assets, build both PKGs, refuse debug kernels |
+| `scripts/make-test-usb.sh` | stock-kernel test stick, works on a phone without root |
+| `tools/hwprofile.c`, `.sh` | what the kernel actually detects; says "unknown" rather than guessing |
+| `tools/chromeos-scan.c` | the removal rule set, with a dry run and a confirmation token |
+| `tools/test-chromeos-scan.sh` | 28 assertions on a synthetic tree |
+
+### What is deliberately not in the repository
+
+The kernel tree, the Debian rootfs, the disk image, the loader payload and the
+toolchain are all fetched or built, not committed - together they are tens of
+gigabytes. The `.pkg` files are build output. `tools/chromeos-scan` is committed
+as source only; build it with `cc -O2 -Wall -Wextra -o chromeos-scan chromeos-scan.c`
+before running the test script.
 
 ## Credits and licensing
 
@@ -123,9 +146,10 @@ Standing on other people's work:
 - **theJetsetlife/chromeos-ps4** - the installer recipe and the removal rule set.
 - **PS4-patched Mesa** - required for GPU acceleration on Liverpool/Gladius.
 
-ChromeOS Flex is **not** redistributable and is not included here. Firmware
-blobs (AMD GPU, MediaTek MT7668, Marvell) come from `linux-firmware` and remain
-under their own terms. This repository contains no Sony code.
+See `NOTICE.md` for the full list, the licences, and what is deliberately absent.
+ChromeOS Flex is **not** redistributable and is not included here. Firmware blobs
+(AMD GPU, MediaTek MT7668, Marvell) come from `linux-firmware` and remain under
+their own terms. This repository contains no Sony code.
 
 No licence is declared yet for this project's own code; that is deliberate, since
 it links against GPL-3.0 toolchain components and the choice needs to be made
