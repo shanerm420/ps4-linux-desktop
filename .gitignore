@@ -1,0 +1,20 @@
+# Build output
+build/
+out/
+*.pkg
+*.o
+*.elf
+*.oelf
+*.gp4
+sce_sys/param.sfo
+eboot.bin
+
+# Staged package assets (produced by scripts/make-pkg.sh)
+pkg/installer/assets/
+
+# Kernel and rootfs working trees
+src/
+
+# Local image files
+*.img
+*.img.xz
