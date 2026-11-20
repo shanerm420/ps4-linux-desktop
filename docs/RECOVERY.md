@@ -28,6 +28,30 @@ A PC cannot do this for you either: the PS4 drive is encrypted with the console'
 own EAP key, which exists only in the memory of a running, jailbroken console. A
 Linux live USB on a laptop sees an unreadable disk, not a filesystem to edit.
 
+## Starting Linux when BinLoader is off
+
+The installer hands the loader to GoldHEN's BinLoader on `127.0.0.1:9090`, and it
+also copies `ps4linux-loader.bin` into `/data/payloads` so the file appears in
+GoldHEN's **Payloads** menu. If BinLoader is disabled - which is the usual
+default - the app reports that it could not start the loader, and nothing boots.
+The install itself is already finished at that point; only the launch is missing.
+
+Start it by hand:
+
+1. GoldHEN menu -> **Payloads**
+2. choose `ps4linux-loader.bin`
+3. the console restarts into Linux
+
+This is the route with the strongest evidence behind it. The reference console
+runs ChromeOS for PS4, which uses the same loader family (`ps4-linux-loader`) and
+is started from that same menu, so launching the payload by hand is proven on
+that hardware even where the automatic path is not.
+
+The loader lives in two places: `/data/linux/boot/ps4linux-loader.bin` (what the
+loader reads at boot) and `/data/payloads/ps4linux-loader.bin` (what the menu
+lists). If the menu is empty, the second copy is missing - copy it over FTP from
+the first path. That copy is never required for booting, only for launching.
+
 ## The console will not boot into Linux
 
 1. Hold the power button until it turns off. Start it normally.
