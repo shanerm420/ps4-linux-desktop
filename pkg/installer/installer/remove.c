@@ -17,6 +17,10 @@
 // What it deliberately does NOT delete: bzImage, initramfs.cpio.gz, bootargs.txt
 // and vram.txt. Those names are shared with every other PS4 Linux install
 // (docs/LAYOUT.md), so deleting them would break a coexisting install.
+//
+// Builds with the OpenOrbis toolchain (OO_PS4_TOOLCHAIN); see the repository
+// README for the command and for what remains unverified. Nothing here has run
+// on a PS4 yet.
 #include <errno.h>
 #include <fcntl.h>
 #include <stdarg.h>
