@@ -1,0 +1,18 @@
+[Unit]
+Description=Remount the PS4 boot partition read-only
+# The boot partition holds the kernel, initramfs and loader payload. Only the
+# PKG update path may write it. This runs after local-fs so it can remount.
+DefaultDependencies=no
+After=local-fs.target
+Requires=local-fs.target
+Before=sysinit.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# The initramfs mounts it at /boot; if the layout changes, change this too.
+ExecStart=/bin/sh -c 'mountpoint -q /boot && mount -o remount,ro /boot || true'
+ExecStart=/bin/sh -c 'if mountpoint -q /boot; then logger -t ps4-boot "boot partition is read-only"; else logger -t ps4-boot "warning: /boot is not mounted"; fi'
+
+[Install]
+WantedBy=sysinit.target

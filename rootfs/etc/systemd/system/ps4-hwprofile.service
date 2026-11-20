@@ -1,0 +1,12 @@
+[Unit]
+Description=Record PS4 hardware profile for support reports
+After=multi-user.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c '/usr/local/bin/ps4-hwprofile > /var/log/ps4-hwprofile.txt 2>&1 || true'
+ExecStart=/bin/sh -c 'logger -t ps4-hw "hardware profile written to /var/log/ps4-hwprofile.txt"'
+
+[Install]
+WantedBy=multi-user.target

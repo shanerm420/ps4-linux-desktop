@@ -1,0 +1,22 @@
+# PS4 components are pinned so ordinary updates cannot break boot.
+#
+# The kernel is never installed by the distro: it lives in the read-only boot
+# partition and is only replaced by a signed PKG update. This pin makes an
+# accidental `apt install linux-image-amd64` fail instead of producing a console
+# that will not boot.
+Package: linux-image-*
+Pin: release *
+Pin-Priority: -1
+
+Package: linux-headers-*
+Pin: release *
+Pin-Priority: -1
+
+Package: linux-kbuild-*
+Pin: release *
+Pin-Priority: -1
+
+# The PS4-patched Mesa lives in /opt/ps4-mesa and is selected by
+# /usr/share/vulkan/icd.d/ps4-mesa.json + /etc/environment. Distro Mesa stays
+# where Debian puts it, so upgrading it is harmless.
+# (No pin needed; the two never share a path.)

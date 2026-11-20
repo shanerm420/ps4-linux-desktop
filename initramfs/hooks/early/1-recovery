@@ -1,0 +1,13 @@
+#!/bin/sh
+# Earliest recovery check: before anything is mounted or installed, a USB stick
+# with ps4linux-recovery in its root stops the boot and gives a shell. This is
+# the escape hatch when the image itself is broken, so it must not depend on the
+# image being readable.
+for d in /mnt/usb0 /mnt/usb1 /mnt/usb2; do
+	if [ -f "$d/ps4linux-recovery" ]; then
+		echo "[ps4linux] recovery flag found on $d - not booting Linux"
+		echo "[ps4linux] the PS4 system is untouched; reboot without this stick to play"
+		exec /bin/sh
+	fi
+done
+exit 0

@@ -1,0 +1,7 @@
+# PS4 Linux Desktop - environment
+#
+# Prefer the PS4-patched Mesa in /opt over the distro's copy. Both exist; only
+# this makes the patched one win. If a future distro update ships a Mesa that
+# binds the PS4 GPU on its own, delete these two lines and the /opt copy.
+VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/ps4-mesa.json
+__GLX_VENDOR_LIBRARY_NAME=ps4-mesa
