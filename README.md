@@ -135,22 +135,17 @@ gigabytes. The `.pkg` files are build output. `tools/chromeos-scan` is committed
 as source only; build it with `cc -O2 -Wall -Wextra -o chromeos-scan chromeos-scan.c`
 before running the test script.
 
-## Credits and licensing
+## Licence
 
-Standing on other people's work:
+**GPL-3.0-or-later** for this project's own code - see `LICENSE`.
 
-- **OpenOrbis PS4 Toolchain** (GPL-3.0) - the SDK and packaging tools.
-- **rmuxnet / Strawberry kernel** - Baikal and Aeolia/Belize kernel trees.
-- **ps4-linux-loader** (ArabPixel, rmuxnet) - the firmware-agnostic kexec loader.
-- **initramfs-ps4** (GattoDev) - the base that opens the encrypted PS4 drive.
-- **theJetsetlife/chromeos-ps4** - the installer recipe and the removal rule set.
-- **PS4-patched Mesa** - required for GPU acceleration on Liverpool/Gladius.
+That is not an arbitrary choice. The packages are built with the GPL-3.0
+OpenOrbis toolchain and LibOrbisPkg, so distributing the resulting binaries
+carries the GPL's source obligation either way; declaring it means the obligation
+can be met by pointing at this repository.
 
-See `NOTICE.md` for the full list, the licences, and what is deliberately absent.
-ChromeOS Flex is **not** redistributable and is not included here. Firmware blobs
-(AMD GPU, MediaTek MT7668, Marvell) come from `linux-firmware` and remain under
-their own terms. This repository contains no Sony code.
-
-No licence is declared yet for this project's own code; that is deliberate, since
-it links against GPL-3.0 toolchain components and the choice needs to be made
-deliberately rather than by default.
+Third-party components keep their own licences and are not relicensed here. See
+`NOTICE.md` for the full list and for what is deliberately absent. ChromeOS Flex
+is **not** redistributable and is not included. Firmware blobs (AMD GPU, MediaTek
+MT7668, Marvell) come from `linux-firmware` under their own terms. This
+repository contains no Sony code and no Sony key.

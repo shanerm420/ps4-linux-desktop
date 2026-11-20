@@ -31,6 +31,13 @@ and remain under their own terms. They are not in this repository.
 
 ## This project's own licence
 
-Not declared yet. The build links against GPL-3.0 components, so the practical
-choice is GPL-3.0 or a compatible licence - but that decision is deliberately
-left open rather than defaulted.
+**GPL-3.0-or-later**, Copyright (C) 2026 shanerm420 - see `LICENSE`.
+
+This follows from the stack rather than from preference: the packages are built
+with the GPL-3.0 OpenOrbis toolchain and LibOrbisPkg, so distributing the
+resulting binaries carries the GPL's source obligation either way. Declaring it
+here means the obligation can be met simply by pointing at this repository.
+
+Third-party components remain under their own licences and are not relicensed by
+this one. Nothing here is Sony code, and no Sony key is stored or redistributed:
+ the console's drive key is read at runtime from its own kernel.

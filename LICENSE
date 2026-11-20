@@ -1,0 +1,46 @@
+PS4 Linux Desktop
+Copyright (C) 2026 shanerm420
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
+The full text of the GNU General Public License version 3 is published at:
+
+    https://www.gnu.org/licenses/gpl-3.0.txt
+
+and is incorporated here by reference. The notice above is the one the GPL
+itself prescribes for applying it to a program.
+
+
+Why this licence
+----------------
+
+This is not a stylistic choice. The PS4 packages are built with the OpenOrbis
+PS4 toolchain and LibOrbisPkg, both GPL-3.0. Distributing binaries produced with
+them carries the GPL's obligation to make the corresponding source available, so
+this project is offered under the same terms instead of a licence that could not
+honestly be satisfied.
+
+Third-party components keep their own licences and are not relicensed by this
+file. See NOTICE.md for the list, and for what this repository deliberately does
+not contain.
+
+What this licence does not grant
+--------------------------------
+
+No Sony code, firmware or key is included or licensed here. The console's drive
+key is read at runtime from the running console's own kernel; nothing of Sony's
+is stored or redistributed. ChromeOS Flex is not redistributable and is not part
+of this project. Using this software requires a console you own and are entitled
+to modify; that is your responsibility, not something this licence speaks to.
