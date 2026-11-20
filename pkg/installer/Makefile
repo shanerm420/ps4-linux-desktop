@@ -86,6 +86,24 @@ sce_module/%.prx:
 	@mkdir -p sce_module
 	cp "$(MODSRC)/$*.prx" $@
 
+# Package artwork. Not committed: it ships with the OpenOrbis samples, and a
+# binary blob in this repository would need its own licensing answer.
+SAMPLES     := $(TOOLCHAIN)/samples/hello_world/sce_sys
+
+sce_sys/about/right.sprx:
+	@[ -f "$(SAMPLES)/about/right.sprx" ] || { \
+		echo "no package artwork at $(SAMPLES)/about/right.sprx" >&2; \
+		echo "set OO_PS4_TOOLCHAIN to a full toolchain (samples/ must exist)" >&2; exit 1; }
+	@mkdir -p sce_sys/about
+	cp "$(SAMPLES)/about/right.sprx" $@
+
+sce_sys/icon0.png:
+	@[ -f "$(SAMPLES)/icon0.png" ] || { \
+		echo "no package artwork at $(SAMPLES)/icon0.png" >&2; \
+		echo "set OO_PS4_TOOLCHAIN to a full toolchain (samples/ must exist)" >&2; exit 1; }
+	@mkdir -p sce_sys
+	cp "$(SAMPLES)/icon0.png" $@
+
 pkg.gp4: eboot.bin sce_sys/about/right.sprx sce_sys/param.sfo sce_sys/icon0.png \
          $(LIBMODULES) $(ASSETS)
 	$(TOOLCHAIN)/bin/linux/create-gp4 -out $@ --content-id=$(CONTENT_ID) --files "$^"
