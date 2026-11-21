@@ -739,13 +739,16 @@ static int copy_file(int in, const char *dst, uint64_t *done, uint64_t total, co
 }
 
 // ------------------------------------------------------------------ payload
+// Streams the payload from the package file straight into GoldHEN's BinLoader
+// socket. There is deliberately no size cap: the upstream AIO loader payloads
+// embed a kexec'd kernel and are several MB, so buffering one whole payload in
+// the app's memory was both wasteful and a limit that would have refused to send
+// the file at all.
 static int send_payload(int fd)
 {
-	static unsigned char buf[512 * 1024];
+	static unsigned char buf[64 * 1024];
 	uint64_t size = fd_size(fd);
-	if (size == 0 || size > sizeof(buf) || lseek(fd, 0, SEEK_SET) != 0) return -1;
-	ssize_t n = read(fd, buf, (size_t)size);
-	if (n != (ssize_t)size) return -1;
+	if (size == 0 || lseek(fd, 0, SEEK_SET) != 0) return -1;
 	sceNetInit();
 	int s = sceNetSocket("ps4linux-loader", ORBIS_NET_AF_INET, ORBIS_NET_SOCK_STREAM, 0);
 	if (s < 0) return -1;
@@ -760,17 +763,26 @@ static int send_payload(int fd)
 		return -1;
 	}
 	size_t off = 0;
-	while (off < (size_t)n) {
-		int w = sceNetSend(s, buf + off, (size_t)n - off, 0);
-		if (w <= 0) {
-			sceNetSocketClose(s);
-			return -1;
+	uint64_t sent = 0;
+	int rc = 0;
+	ssize_t n;
+	while ((n = read(fd, buf, sizeof(buf))) > 0) {
+		off = 0;
+		while (off < (size_t)n) {
+			int w = sceNetSend(s, buf + off, (size_t)n - off, 0);
+			if (w <= 0) {
+				rc = -1;
+				break;
+			}
+			off += (size_t)w;
 		}
-		off += (size_t)w;
+		if (rc) break;
+		sent += (uint64_t)n;
 	}
+	if (n < 0 || sent != size) rc = -1;
 	sceNetSocketClose(s);
-	klog("payload sent (%zu bytes)", off);
-	return 0;
+	if (rc == 0) klog("payload sent (%llu bytes)", (unsigned long long)sent);
+	return rc;
 }
 
 // ------------------------------------------------------------------ main
