@@ -11,8 +11,8 @@ care about, and read the "before you begin" pages the app shows you.
 
 - A **jailbroken PS4** running **GoldHEN**, not v2.4b18.8 (that build does not
   boot the loader). GoldHEN's **BinLoader server** on port 9090 must be enabled.
-- **`PS4Linux.pkg`** - the app. It installs Linux and is how you start it from
-  then on.
+- **`PS4-XFCE-Linux.pkg`** - the app. It installs Linux and is how you start it
+  from then on.
 - **A PS4 Linux loader payload** - `ps4-linux-1gb.bin`, or the `.elf`, from the
   loader project. Any VRAM size will do: the app sets that itself. This is the one
   file this project does not ship, because it is somebody else's binary and it is
@@ -25,8 +25,8 @@ taking up space. It is a separate app and it only removes that.
 
 ## 2. Install
 
-1. Copy `PS4Linux.pkg` to a USB stick and install it on the console the usual way
-   (the homebrew package installer you already use).
+1. Copy `PS4-XFCE-Linux.pkg` to a USB stick and install it on the console the usual
+   way (the homebrew package installer you already use).
 2. Put the loader payload in the **root of a USB stick**, or in
    `/data/payloads` over FTP. Name it something with `linux` in it and end it in
    `.bin` or `.elf`.
@@ -169,8 +169,8 @@ you a shell, because the loader checks USB first.
 - **Linux itself:** `sudo apt update && sudo apt full-upgrade`. Normal Debian.
 - **The kernel, initramfs, loader and patched Mesa:** only change with a new
   package. That is deliberate - they are the boot and graphics path.
-- **The app:** install the newer `PS4Linux.pkg` over the old one. Your install,
-  your image and your files are untouched.
+- **The app:** install the newer `PS4-XFCE-Linux.pkg` over the old one. Your
+  install, your image and your files are untouched.
 
 ## 8. Removing it
 
@@ -191,6 +191,10 @@ See [`docs/BUILD-PKG.md`](BUILD-PKG.md) for the package,
 [`scripts/build-mesa.sh`](../scripts/build-mesa.sh) for the patched Mesa, and
 [ps4-linux-kernel](https://github.com/shanerm420/ps4-linux-kernel) for the kernel
 on its own (provenance, `build.sh`, checksums).
+
+Want to put a different distribution in the same package?
+[ps4-os-builder](https://github.com/shanerm420/ps4-os-builder) is this build with
+the operating system left out: your rootfs, your name, same boot chain.
 
 ## 10. What is still missing
 
