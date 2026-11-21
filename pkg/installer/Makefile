@@ -114,7 +114,10 @@ ifeq ($(APP),install)
 	grep -q '<dir targ_name="ps4linux" />' $@
 endif
 
-sce_sys/param.sfo: Makefile
+# Always regenerate: this file carries TITLE and TITLE_ID, which differ per APP.
+# Depending only on the Makefile let a remover param.sfo survive into the
+# installer package - header PS4LNX001, title inside "PS4 Linux: Remove ChromeOS".
+sce_sys/param.sfo: Makefile FORCE
 	$(PKGTOOL) sfo_new $@
 	$(PKGTOOL) sfo_setentry $@ APP_TYPE --type Integer --maxsize 4 --value 1
 	$(PKGTOOL) sfo_setentry $@ APP_VER --type Utf8 --maxsize 8 --value '$(VERSION)'
@@ -139,4 +142,6 @@ clean:
 	rm -f *.pkg pkg.gp4 sce_sys/param.sfo eboot.bin $(INTDIR)/*.elf \
 		$(INTDIR)/*.oelf $(INTDIR)/*.o
 
-.PHONY: all clean check-ids
+FORCE:
+
+.PHONY: all clean check-ids FORCE

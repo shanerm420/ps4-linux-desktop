@@ -45,13 +45,13 @@ PKGS="xfce4 xfce4-terminal thunar lightdm lightdm-gtk-greeter
 	systemd systemd-sysv udev e2fsprogs dosfstools ca-certificates
 	wpasupplicant iw rfkill pciutils usbutils
 	base-files base-passwd dpkg debianutils mawk grep sed findutils coreutils
-	bash tar gzip login passwd util-linux procps sysvinit-utils
+	dash bash apt tar gzip login passwd util-linux procps sysvinit-utils
 	init-system-helpers adduser"
 
 [ "$(id -u)" = 0 ] && { echo "run this as a normal user, not root" >&2; exit 1; }
 
 rm -rf "$R"
-mkdir -p "$R/etc/apt/apt.conf.d" "$R/etc/apt/trusted.gpg.d" \
+mkdir -p "$R/etc/apt/apt.conf.d" "$R/etc/apt/preferences.d" "$R/etc/apt/trusted.gpg.d" \
 	"$R/var/lib/apt/lists/partial" "$R/var/cache/apt/archives/partial" "$R/var/lib/dpkg"
 
 # The archive keyring, so apt can verify what it downloads.
@@ -82,8 +82,28 @@ $APT update
 # shellcheck disable=SC2086
 $APT -y --download-only --no-install-recommends install $PKGS
 
-echo "unpacking $(ls -1 "$R"/var/cache/apt/archives/*.deb | wc -l) packages"
-for d in "$R"/var/cache/apt/archives/*.deb; do dpkg-deb -x "$d" "$R"; done
+COUNT=$(ls -1 "$R"/var/cache/apt/archives/*.deb | wc -l)
+echo "unpacking $COUNT packages"
+# A partial download used to produce a tarball that looked fine and had no shell
+# in it. Refuse to pack a tree that cannot be booted.
+[ "$COUNT" -ge 300 ] || { echo "only $COUNT packages downloaded - refusing to pack a partial image" >&2; exit 1; }
+: > "$R/var/lib/dpkg/status"
+for d in "$R"/var/cache/apt/archives/*.deb; do
+	dpkg-deb -x "$d" "$R" || { echo "unpack failed: $d" >&2; exit 1; }
+	# One status entry per package, so apt inside the image knows what is already
+	# installed. Without this, `apt install` inside Linux tries to reinstall the
+	# whole system and dpkg refuses.
+	ctl=$(mktemp)
+	dpkg-deb -f "$d" > "$ctl" 2>/dev/null || true
+	grep -q '^Status:' "$ctl" || printf 'Status: install ok installed\n' >> "$ctl"
+	cat "$ctl" >> "$R/var/lib/dpkg/status"
+	printf '\n' >> "$R/var/lib/dpkg/status"
+	rm -f "$ctl"
+done
+for f in bin/sh usr/bin/sh usr/bin/ls usr/bin/apt usr/bin/dpkg usr/sbin/init; do
+	[ -e "$R/$f" ] || { echo "$f is missing after unpacking - refusing to pack an image that cannot boot" >&2; exit 1; }
+done
+echo "  status entries: $(grep -c '^Package:' "$R/var/lib/dpkg/status")"
 
 # --- accounts. Debian's own masters, then the desktop user.
 cp "$R/usr/share/base-passwd/passwd.master" "$R/etc/passwd"
@@ -171,7 +191,16 @@ ln -sf /etc/systemd/system/ps4-boot-ro.service "$R/etc/systemd/system/sysinit.ta
 ln -sf /etc/systemd/system/ps4-hwprofile.service "$R/etc/systemd/system/multi-user.target.wants/ps4-hwprofile.service"
 
 # --- ld.so.cache, for real
-"$PROOT" -0 -r "$R" -b /proc -b /dev -b /sys -w / /sbin/ldconfig
+# proot is the only unprivileged way to run the target's own ldconfig, so the
+# cache records target paths. It crashes on some hardened kernels (seccomp or
+# ptrace restrictions, "terminated with signal 11"), and that must not cost us
+# the image: without a cache the loader still searches /lib and /usr/lib, and
+# everything this build installs lives there or is reached through the glvnd
+# symlinks. So a failure here is a warning, not an exit.
+if ! "$PROOT" -0 -r "$R" -b /proc -b /dev -b /sys -w / /sbin/ldconfig; then
+	echo "WARNING: ldconfig under proot failed - no /etc/ld.so.cache in this image." >&2
+	echo "         Default library paths still resolve; nothing here depends on the cache." >&2
+fi
 
 # --- clean and pack
 rm -rf "$R"/var/cache/apt/archives/*.deb "$R"/var/lib/apt/lists/* \
