@@ -4,7 +4,7 @@
 # scripts/build-rootfs.sh is the supported recipe: debootstrap plus an XFCE
 # package set on a machine where you can be root. This script is the fallback for
 # a build host where you cannot, and it is the one that produced the tarball the
-# v0.1.0-preview package carries. It does not chroot anywhere:
+# v1.0.0 package carries. It does not chroot anywhere:
 #
 #   1. apt resolves the dependency tree with Dir= pointing at a scratch tree and
 #      downloads every .deb (--download-only, so dpkg never runs);
