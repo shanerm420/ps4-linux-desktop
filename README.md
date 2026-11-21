@@ -11,7 +11,7 @@ assuming anything works.
 | Area | State |
 |---|---|
 | Installer app source (`pkg/installer/`) | Written; type-checks against the real Orbis headers |
-| Installer app compiled to `eboot.bin` | **Built** — 121,760 bytes with clang 18 + `ld.lld` against `link.x` |
+| Installer app compiled to `eboot.bin` | **Built** — 121,920 bytes with clang 18 + `ld.lld` against `link.x` |
 | Installer PKG produced | **Built and validated** — `pkg_validate` 28/28; carries the real kernel, a real initramfs and the Debian/XFCE rootfs. The loader payload is still a placeholder |
 | Installer PKG installed on a console | **Not done** |
 | ChromeOS detection / removal rules | **Implemented and tested** (24 assertions, synthetic tree) |
@@ -96,6 +96,10 @@ started Linux. So:
 - To remove the entry itself, load a homebrew enabler that does not autoload
   payloads (NextHEN, PS4HEN Lite, Mira), FTP in, and delete both the entry and
   the payload copy it names.
+- If the entry is not currently firing - the payload it names is already gone, so
+  the console boots normally - **PS4 Linux Desktop** removes it for you: it lists
+  the file(s), asks, and deletes only those. No FTP and no second enabler. It
+  cannot do that during a live loop, because it only runs after GoldHEN loads.
 - To get Linux back afterwards, put the payload file back - a fresh download in
   the root of a USB stick, or in `/data/payloads` - and launch this app. It copies
   it next to the kernel again and starts Linux. Nothing needs reinstalling: the
@@ -175,7 +179,7 @@ in a built toolchain. `make-pkg.sh` fails with a clear message if it is missing.
 | Shell scripts parse | `bash -n scripts/*.sh` | pass |
 | Dummy kernel package builds | `dpkg-deb --build` | pass |
 | Kernel builds | `SB=baikal bash scripts/build-kernel.sh` | pass — `bzImage` 14,251,008 bytes, sha256 `a70b0935…b889`, `HdrS` at 0x202 |
-| Installer app compiles | `make APP=install` | pass — `eboot.bin`, 121,760 bytes |
+| Installer app compiles | `make APP=install` | pass — `eboot.bin`, 121,920 bytes |
 | Installer PKG builds and validates | `WITH_ROOTFS=1 bash scripts/make-pkg.sh`, `PkgTool.Core pkg_validate` | pass — 268,500,992 bytes, 28/28 checks OK, all four assets byte-identical to their sources |
 | Initramfs handoff is really in the init | unpack the packaged `initramfs.cpio.gz`, read `init` | pass — the block after the base's `mount ... /ps4hdd` calls `ps4linux_boot` |
 | Rootfs has a desktop and a login | unpack `rootfs.tar.zst` | pass — `systemd`, `xfce4-session`, `lightdm` (linked as `display-manager.service`), `Xorg`, user `ps4` |

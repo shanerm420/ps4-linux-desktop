@@ -79,6 +79,9 @@ already taken the console.
 2. To remove the entry itself, load a homebrew enabler that does not autoload
    payloads (NextHEN is the one reported working; PS4HEN Lite and Mira are the
    same idea), then FTP in and delete the entry plus the payload copy it names.
+   If the entry is not firing — its payload is already gone, so the console boots
+   normally — **PS4 Linux Desktop** does this for you: it lists the entry, asks,
+   and deletes only that.
 3. Reboot, re-enable GoldHEN, and confirm the console stays on the home screen.
 4. From then on, start Linux from the app only — or turn autoload back on
    deliberately, knowing the above. If you deleted the payload itself to stop the
@@ -108,6 +111,12 @@ payload immediately shuts OrbisOS down and starts Linux, so the loop never ends.
 4. Reboot, re-enable GoldHEN, and confirm the console stays on the home screen.
 5. Launch Linux only from the app from then on.
 
+**If the loop is broken but the entry is still there** (the payload it names is
+gone, so GoldHEN loads normally again), launch **PS4 Linux Desktop**. It finds the
+entry, shows the path and offers to remove it: no FTP, no second enabler. It
+cannot remove an entry that is actively looping, because the app only runs after
+GoldHEN has loaded — and by then the payload has already taken the console.
+
 **Getting Linux back after the loop.** Breaking a loop usually means deleting the
 payload, which leaves the install with no loader — the app then has nothing to
 send. Put the file back (a fresh download in the root of a USB stick, or in
@@ -133,7 +142,7 @@ journalctl -b -p err
 cat /var/log/ps4-hwprofile.txt
 ```
 
-The most likely causes, in order: the PS4-patched Mesa is missing from
+The most likely causes, in order: the PS4-Patched Mesa is missing from
 `/opt/ps4-mesa` (so `radeonsi` never binds), or `/boot` was not remounted
 read-only and something wrote to it.
 
@@ -152,4 +161,4 @@ both slots are broken, use the USB rescue shell and restore from
    and `/data/payloads`.
 4. If `backups.txt` lists files that were moved aside, rename them back.
 
-Nothing else on the console is affected.
+Nothing else on the console affects.

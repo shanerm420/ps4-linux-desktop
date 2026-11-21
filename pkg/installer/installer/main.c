@@ -19,9 +19,11 @@
 // menu choice here and never a file edit on the console.
 //
 // Hard rules encoded here:
-//   * this app never deletes a file that existed before it ran. Its unlink()
-//     calls remove only temporary files it created itself (.part, its probe,
-//     its own reserve). Removing a ChromeOS install is PS4LNX002's whole job;
+//   * this app deletes nothing that existed before it ran, with one exception the
+//     user asks for by name: a payload autoload entry (autoload_offer_remove).
+//     Its unlink() calls otherwise only remove temporary files it created itself
+//     (.part, its probe, its own reserve). Removing a ChromeOS install is
+//     PS4LNX002's whole job;
 //   * shared boot files (bzImage, initramfs.cpio.gz) are backed up before we
 //     write ours, because the loader's search path is fixed (see docs/LAYOUT.md);
 //   * this app never writes, registers or modifies any payload autoload config;
@@ -429,15 +431,81 @@ static const char *k_autoload[] = {
 	NULL,
 };
 
-static int autoload_present(char *first, size_t cap)
+// Removing an autoload entry is the ONE thing this app deletes, and only after
+// the user has read the paths and asked for it. It is here because of the loop:
+// an armed entry fires every time GoldHEN loads, so the console never reaches a
+// state where anything else can run. When it is NOT firing - the payload it names
+// is gone, or the entry points at a file that no longer exists - this app does
+// run, and this is where the mess gets cleaned up without FTP and without a
+// second enabler.
+static int remove_path(const char *path)
 {
+	struct stat st;
+	if (stat(path, &st) != 0) return 0;	// already gone
+	if (S_ISDIR(st.st_mode)) {
+		DIR *d = opendir(path);
+		if (d) {
+			struct dirent *e;
+			char p[320];
+			while ((e = readdir(d)) != NULL) {
+				if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+				snprintf(p, sizeof(p), "%s/%s", path, e->d_name);
+				unlink(p);
+			}
+			closedir(d);
+		}
+		return rmdir(path) == 0 ? 1 : -1;
+	}
+	return unlink(path) == 0 ? 1 : -1;
+}
+
+// Lists what is armed, asks, and deletes only those paths. Returns 1 if anything
+// was removed.
+static int autoload_offer_remove(void)
+{
+	char listing[512];
+	size_t used = 0;
+	int n = 0;
+	listing[0] = 0;
 	for (int i = 0; k_autoload[i]; i++) {
-		if (exists(k_autoload[i])) {
-			snprintf(first, cap, "%s", k_autoload[i]);
-			return 1;
+		if (!exists(k_autoload[i])) continue;
+		int add = snprintf(listing + used, sizeof(listing) - used, "  %s\n", k_autoload[i]);
+		if (add > 0) used += (size_t)add;
+		n++;
+	}
+	if (!n) return 0;
+
+	int r = dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS, "Remove it", "Keep it",
+	               "A payload autoload file was found:\n%s\n"
+	               "This app never creates one and never writes one. An autoloaded "
+	               "Linux payload makes the console restart in a loop every time "
+	               "GoldHEN loads.\n\n"
+	               "Remove it now? Only the file(s) listed above are deleted. "
+	               "Nothing else on the console is touched.", listing);
+	if (r != 1) return 0;
+
+	int gone = 0, failed = 0;
+	for (int i = 0; k_autoload[i]; i++) {
+		if (!exists(k_autoload[i])) continue;
+		if (remove_path(k_autoload[i]) == 1) {
+			gone++;
+			klog("removed autoload entry %s", k_autoload[i]);
+		} else {
+			failed++;
+			klog("could not remove %s (errno %d)", k_autoload[i], errno);
 		}
 	}
-	return 0;
+	if (failed)
+		dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
+		       "Removed %d autoload file(s); %d could not be removed.\n\n"
+		       "If the console still goes into Linux by itself, the entry is "
+		       "somewhere else: check GoldHEN's own settings screen, and "
+		       "docs/RECOVERY.md.", gone, failed);
+	else
+		dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
+		       "Removed %d autoload file(s).\n\nGoldHEN loads normally from now on, "
+		       "and Linux starts only from this app.", gone);
+	return gone;
 }
 
 // ------------------------------------------------------------------ briefing
@@ -942,7 +1010,7 @@ int main(void)
 		snprintf(path, sizeof(path), "%s/%s", SRC, boot_files[i]);
 		src_fd[i] = open(path, O_RDONLY);
 		if (src_fd[i] < 0) {
-			//<｜begin▁of▁sentence｜>In a package built with WITH_ROOTFS=1 this never happens; with
+			//In a package built with WITH_ROOTFS=1 this never happens; with
 			// WITH_ROOTFS=0 the image is built on a host instead (docs/BUILD-PKG.md).
 			if (!strcmp(boot_files[i], "rootfs.tar.zst")) {
 				no_rootfs = 1;
@@ -968,13 +1036,11 @@ int main(void)
 	struct cros_found cros;
 	cros_scan(&cros);
 
-	char al[128];
-	if (autoload_present(al, sizeof(al)))
-		dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
-		       "Note: a payload autoload file was found at:\n%s\n\n"
-		       "This installer never creates one. If you added it yourself, remove "
-		       "it: an autoloaded Linux payload makes the console restart in a loop "
-		       "every time you jailbreak.\n\nSee docs/RECOVERY.md.", al);
+	// An armed autoload entry is the one thing that can keep this app from ever
+	// running, so it is dealt with first - and only if the user says so. If the
+	// entry is currently looping, the app never gets here at all; docs/RECOVERY.md
+	// covers that case.
+	autoload_offer_remove();
 
 	// 3. already installed -> start, or change the graphics memory first. The
 	//    app stays installed after the install (it is the only way to start Linux
