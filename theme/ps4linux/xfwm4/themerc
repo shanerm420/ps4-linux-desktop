@@ -1,0 +1,17 @@
+# PS4 Linux - xfwm4 window decorations.
+# Colours match the app: navy titlebar, one blue for focus, ink text.
+
+active_text_color=#f3f6fa
+inactive_text_color=#7c8b9c
+active_text_shadow_color=#000000
+inactive_text_shadow_color=#000000
+title_shadow_active=false
+title_shadow_inactive=false
+title_font=Sans Bold 10
+title_alignment=center
+title_horizontal_offset=6
+title_vertical_offset=0
+full_width_title=true
+button_offset=3
+button_spacing=4
+button_layout=O|HMC

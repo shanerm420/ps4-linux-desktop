@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=X-GNOME-Metatheme
+Name=PS4 Linux
+Comment=The PS4 XFCE Linux app's palette, applied to the desktop
+Encoding=UTF-8
+
+[X-GNOME-Metatheme]
+GtkTheme=ps4linux
+MetacityTheme=ps4linux
+ButtonLayout=O|HMC

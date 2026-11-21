@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<channel name="xfwm4" version="1.0">
+  <property name="general" type="empty">
+    <property name="theme" type="string" value="ps4linux"/>
+    <property name="title_font" type="string" value="Sans Bold 10"/>
+    <property name="title_alignment" type="string" value="center"/>
+    <property name="button_layout" type="string" value="O|HMC"/>
+    <property name="double_click_action" type="string" value="maximize"/>
+    <property name="workspace_count" type="int" value="2"/>
+    <property name="snap_to_border" type="bool" value="true"/>
+  </property>
+</channel>

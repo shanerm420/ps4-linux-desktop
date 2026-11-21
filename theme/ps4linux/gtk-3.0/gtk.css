@@ -1,0 +1,385 @@
+/* PS4 Linux - GTK 3 theme.
+ *
+ * The app's palette, applied to the desktop: navy surfaces, one blue for focus
+ * and selection, the same type sizes at the scale a desktop needs rather than a
+ * sofa. Colours come from artwork/mockui.py, so the app and the desktop match.
+ */
+
+@define-color ink          #f3f6fa;
+@define-color ink_dim      #96a5b6;
+@define-color ink_faint    #6c7c8e;
+@define-color surface      #101b29;
+@define-color surface_hi   #16243a;
+@define-color surface_low  #0b1420;
+@define-color edge         #1e2c3e;
+@define-color edge_soft    #26374b;
+@define-color accent       #48a3f0;
+@define-color accent_hi    #5cb2f7;
+@define-color accent_low   #3a8fd9;
+@define-color accent_dim   #2e6eac;
+@define-color select       #1b3a55;
+@define-color amber        #e8b260;
+@define-color red          #e03e2f;
+
+* {
+  outline-color: alpha(@accent, 0.6);
+  outline-style: dashed;
+  outline-width: 1px;
+  outline-offset: -2px;
+}
+
+window,
+.background {
+  background-color: @surface;
+  color: @ink;
+}
+
+/* ---------------------------------------------------------------- headerbar */
+headerbar,
+.titlebar,
+toolbar {
+  background-image: none;
+  background-color: @surface_hi;
+  border-color: @edge;
+  border-bottom: 1px solid @edge;
+  color: @ink;
+  box-shadow: none;
+  min-height: 34px;
+  padding: 2px 6px;
+}
+
+headerbar:backdrop,
+.titlebar:backdrop {
+  background-color: @surface;
+  color: @ink_dim;
+}
+
+headerbar .title,
+headerbar .subtitle {
+  color: @ink;
+  font-weight: bold;
+}
+
+headerbar button {
+  background-image: none;
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+  color: @ink;
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+headerbar button:hover {
+  background-color: alpha(@accent, 0.22);
+}
+
+headerbar button:checked,
+headerbar button:active {
+  background-color: alpha(@accent, 0.35);
+}
+
+/* ---------------------------------------------------------------- buttons */
+button {
+  background-image: none;
+  background-color: @surface_hi;
+  border: 1px solid @edge;
+  border-radius: 8px;
+  color: @ink;
+  padding: 6px 14px;
+  box-shadow: none;
+  text-shadow: none;
+}
+
+button:hover {
+  background-color: #1d3049;
+  border-color: @edge_soft;
+}
+
+button:active,
+button:checked {
+  background-color: @select;
+  border-color: @accent_dim;
+}
+
+button:disabled {
+  color: @ink_faint;
+  border-color: @edge;
+}
+
+button.suggested-action {
+  background-image: none;
+  background-color: @accent;
+  border-color: @accent;
+  color: #0a1420;
+  font-weight: bold;
+}
+
+button.suggested-action:hover {
+  background-color: @accent_hi;
+}
+
+button.destructive-action {
+  background-color: #b42c22;
+  border-color: #b42c22;
+  color: #ffedeb;
+}
+
+button.flat {
+  background-color: transparent;
+  border-color: transparent;
+}
+
+button.flat:hover {
+  background-color: alpha(@accent, 0.18);
+}
+
+/* ---------------------------------------------------------------- entries */
+entry,
+spinbutton,
+combobox button {
+  background-image: none;
+  background-color: @surface_low;
+  border: 1px solid @edge;
+  border-radius: 8px;
+  color: @ink;
+  caret-color: @accent;
+  padding: 5px 8px;
+  box-shadow: none;
+}
+
+entry:focus,
+spinbutton:focus {
+  border-color: @accent;
+  box-shadow: 0 0 0 2px alpha(@accent, 0.25);
+}
+
+entry:disabled {
+  color: @ink_faint;
+}
+
+entry selection,
+label selection,
+textview text selection {
+  background-color: @select;
+  color: @ink;
+}
+
+/* ---------------------------------------------------------------- views */
+treeview.view,
+list,
+listview,
+.view,
+iconview,
+flowbox,
+textview text {
+  background-color: @surface_low;
+  color: @ink;
+  border-color: @edge;
+}
+
+treeview.view:hover,
+list row:hover {
+  background-color: alpha(@accent, 0.10);
+}
+
+treeview.view:selected,
+list row:selected,
+iconview:selected,
+.view:selected {
+  background-color: @select;
+  color: @ink;
+}
+
+treeview header button {
+  background-color: @surface_hi;
+  border-radius: 0;
+  border-width: 0 0 1px 0;
+  border-color: @edge;
+  font-weight: bold;
+}
+
+/* ---------------------------------------------------------------- menus */
+menu,
+.menu,
+popover,
+popover.background {
+  background-color: @surface_hi;
+  border: 1px solid @edge;
+  border-radius: 10px;
+  color: @ink;
+  padding: 6px;
+}
+
+menuitem,
+modelbutton {
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+menuitem:hover,
+modelbutton:hover {
+  background-color: alpha(@accent, 0.20);
+}
+
+menuitem:disabled {
+  color: @ink_faint;
+}
+
+separator {
+  background-color: @edge;
+  min-height: 1px;
+  min-width: 1px;
+}
+
+/* ---------------------------------------------------------------- sidebars */
+.sidebar,
+placessidebar,
+stacksidebar list {
+  background-color: @surface;
+  border-color: @edge;
+  color: @ink;
+}
+
+placessidebar row:selected,
+stacksidebar row:selected {
+  background-color: @select;
+  color: @ink;
+  border-radius: 6px;
+}
+
+placessidebar row:hover {
+  background-color: alpha(@accent, 0.12);
+}
+
+/* ---------------------------------------------------------------- tabs */
+notebook > header {
+  background-color: @surface;
+  border-color: @edge;
+}
+
+notebook > header tab {
+  color: @ink_dim;
+  padding: 6px 14px;
+  border-bottom: 2px solid transparent;
+}
+
+notebook > header tab:checked {
+  color: @ink;
+  border-bottom-color: @accent;
+}
+
+notebook > stack {
+  background-color: @surface_low;
+  border: 1px solid @edge;
+}
+
+/* ---------------------------------------------------------------- scrollbars */
+scrollbar {
+  background-color: transparent;
+  border: none;
+}
+
+scrollbar slider {
+  background-color: alpha(@ink, 0.22);
+  border-radius: 8px;
+  min-width: 8px;
+  min-height: 8px;
+  margin: 2px;
+}
+
+scrollbar slider:hover {
+  background-color: alpha(@accent, 0.7);
+}
+
+/* ---------------------------------------------------------------- misc */
+checkbutton check,
+radiobutton radio {
+  background-color: @surface_low;
+  border: 1px solid @edge_soft;
+  min-width: 16px;
+  min-height: 16px;
+}
+
+checkbutton check:checked,
+radiobutton radio:checked {
+  background-color: @accent;
+  border-color: @accent;
+  color: #0a1420;
+}
+
+switch {
+  background-color: @surface_low;
+  border: 1px solid @edge;
+  border-radius: 12px;
+}
+
+switch:checked {
+  background-color: @accent;
+  border-color: @accent;
+}
+
+progressbar trough {
+  background-color: @surface_low;
+  border-radius: 6px;
+  min-height: 8px;
+}
+
+progressbar progress {
+  background-color: @accent;
+  border-radius: 6px;
+}
+
+tooltip {
+  background-color: @surface_hi;
+  border: 1px solid @edge;
+  border-radius: 8px;
+  color: @ink;
+}
+
+infobar.info,
+infobar.question {
+  background-color: alpha(@accent, 0.18);
+  color: @ink;
+}
+
+infobar.warning {
+  background-color: alpha(@amber, 0.22);
+  color: @ink;
+}
+
+infobar.error {
+  background-color: alpha(@red, 0.22);
+  color: @ink;
+}
+
+/* ---------------------------------------------------------------- panel */
+#XfcePanelWindow,
+.xfce4-panel {
+  background-color: alpha(@surface, 0.92);
+  border-top: 1px solid @edge;
+  color: @ink;
+}
+
+#XfcePanelWindow button {
+  background-color: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+
+#XfcePanelWindow button:hover {
+  background-color: alpha(@accent, 0.22);
+}
+
+.xfce4-panel .tasklist button:checked {
+  background-color: @select;
+  border-bottom: 2px solid @accent;
+  border-radius: 4px;
+}
+
+#clock-button,
+.xfce4-panel .clock {
+  color: @ink;
+  font-weight: bold;
+}
