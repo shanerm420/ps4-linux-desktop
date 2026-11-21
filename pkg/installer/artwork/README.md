@@ -6,7 +6,7 @@ project.
 | File | Used by | sha256 |
 |---|---|---|
 | `icon0.png` | `make APP=install` - PS4 XFCE Linux | `cf2055650d8cb2b1e6ba750cdbfa33c8695b7664f816f1e0b0772afe1c136033` |
-| `icon0-remove.png` | `make APP=remove` - PS4 Linux: Remove ChromeOS | `41c19f6f9cca59f41f58675f9e3751613e603b983f494b9c1ac238658b407ce8` |
+| `icon0-remove.png` | `make APP=remove` - PS4 Linux: Remove ChromeOS | `ab747efd155f73306e04221613113616fdf25641c0b4189fd991cb7249d6e026` |
 
 Drop them in this directory and the build picks the right one per app, printing:
 
@@ -23,12 +23,16 @@ than failing. The images themselves are attached to the `v1.0.0` release.
 glowing amber seam, on a midnight-blue field with a teal halo. It is the system
 being put on the machine.
 
-**The remover** names what it takes away. It carries the ChromeOS mark - three
-120-degree sectors with a blue centre - framed by a red prohibition ring and a
-diagonal bar, on the same midnight-blue field. A tile that only said "a console,
-struck through" was ambiguous about which thing was going; this one is not.
+**The remover** names what it takes away. It carries the ChromeOS mark framed by
+a red prohibition ring and a diagonal bar, on the same midnight-blue field. A tile
+that only said "a console, struck through" was ambiguous about which thing was
+going; this one is not.
 
-The ChromeOS mark is used descriptively, to identify the software this package
-removes. ChromeOS and the Chrome logo are trademarks of Google LLC; this project
-is not affiliated with, endorsed by or sponsored by Google, and the mark is drawn
-here rather than copied from a brand asset.
+**It is the Flex mark, so it is monochrome.** ChromeOS Flex is the greyscale
+brand: the same ring-and-core form as ChromeOS, drawn in a single silver tone with
+a darker grey core, not the four-colour Chrome mark. The only colour on the tile is
+the prohibition sign, which is the point of the tile.
+
+ChromeOS and ChromeOS Flex are trademarks of Google LLC. The mark is drawn here to
+identify the software this package removes; this project is not affiliated with,
+endorsed by or sponsored by Google.
