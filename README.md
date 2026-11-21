@@ -36,8 +36,13 @@ row is `untested`, because no console was available.
 
 | Package | TITLE_ID | What it does |
 |---|---|---|
-| PS4 Linux | `PS4LNX001` | The app: installs Linux, starts it, and holds the menu for graphics memory, autoload and recovery |
+| PS4 XFCE Linux | `PS4LNX001` | The app: installs Linux, starts it, and holds the menu for graphics memory, autoload and recovery |
 | PS4 Linux: Remove ChromeOS | `PS4LNX002` | Removes a ChromeOS-for-PS4 install, and nothing else |
+
+The app is named after the desktop it carries, so a Debian/GNOME build or a Windows
+build later can sit next to this one on the same console and nobody has to guess
+which is which. The name is one line in the Makefile (`TITLE`) and one in the
+source (`APP_NAME`).
 
 Separate on purpose. The app deletes nothing that existed before it ran - its
 `unlink()` calls only clean up temporary files it created itself - with one
@@ -158,7 +163,7 @@ started Linux. So:
   payloads (NextHEN, PS4HEN Lite, Mira), FTP in, and delete both the entry and
   the payload copy it names.
 - If the entry is not currently firing - the payload it names is already gone, so
-  the console boots normally - **PS4 Linux** removes it for you: it lists
+  the console boots normally - **PS4 XFCE Linux** removes it for you: it lists
   the file(s), asks, and deletes only those (**Autoload -> Remove the entry**).
   No FTP and no second enabler. It cannot do that during a live loop, because it
   only runs after GoldHEN loads.
@@ -251,7 +256,7 @@ package still builds, it just has no GPU acceleration.
 | Mesa is in the packaged image | unpack `rootfs.tar.zst` from the PKG | pass — 40 files under `/opt/ps4-mesa` plus the glvnd symlinks |
 | App compiles | `make APP=install` | pass — `eboot.bin`, 122,432 bytes |
 | PKG builds and validates | `WITH_ROOTFS=1 bash scripts/make-pkg.sh`, `PkgTool.Core pkg_validate` | pass — 278,659,072 bytes, 28/28 checks OK, all four assets byte-identical to their sources |
-| Package title | read `TITLE` back out of the packaged `param.sfo` | pass — `PS4 Linux` |
+| Package title | read `TITLE` back out of the packaged `param.sfo` | pass — `PS4 XFCE Linux` |
 | Initramfs handoff is really in the init | unpack the packaged `initramfs.cpio.gz`, read `init` | pass — the block after the base's `mount ... /ps4hdd` calls `ps4linux_boot` |
 | Autoload policy is in the packaged initramfs | unpack, read `functions/55-ps4linux.sh` | pass — `ps4l_autoload_policy` present, `bin/zstd` still there |
 | Rootfs has a desktop and a login | unpack `rootfs.tar.zst` | pass — `systemd`, `xfce4-session`, `lightdm` (linked as `display-manager.service`), `Xorg`, user `ps4` |

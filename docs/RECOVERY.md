@@ -14,7 +14,7 @@ Deleting the file deletes the install. Nothing is repartitioned, and no live USB
 is involved:
 
 - **From the app:** the removal screen lists every file with its size and asks
-twice. The dry run prints the same list and changes nothing.
+  twice. The dry run prints the same list and changes nothing.
 - **From OrbisOS over FTP** (GoldHEN's FTP server): delete
   `/user/app/chromeos.img` and the artifacts in `/data/linux/boot/`
   (`chromeos.img.xz`, `chromeos.img.size`, `chromeos.img.alloc*`,
@@ -88,7 +88,7 @@ already taken the console.
    payloads (NextHEN is the one reported working; PS4HEN Lite and Mira are the
    same idea), then FTP in and delete the entry plus the payload copy it names.
    If the entry is not firing — its payload is already gone, so the console boots
-   normally — **PS4 Linux** does this for you: **Autoload -> Remove the entry**
+   normally — **PS4 XFCE Linux** does this for you: **Autoload -> Remove the entry**
    lists what is armed and deletes only that.
 3. Reboot, re-enable GoldHEN, and confirm the console stays on the home screen.
 4. From then on, start Linux from the app only — or turn autoload back on
@@ -120,7 +120,7 @@ payload immediately shuts OrbisOS down and starts Linux, so the loop never ends.
 5. Launch Linux only from the app from then on.
 
 **If the loop is broken but the entry is still there** (the payload it names is
-gone, so GoldHEN loads normally again), launch **PS4 Linux**. **Autoload -> Remove
+gone, so GoldHEN loads normally again), launch **PS4 XFCE Linux**. **Autoload -> Remove
 the entry** shows the path and deletes it: no FTP, no second enabler. It cannot
 remove an entry that is actively looping, because the app only runs after GoldHEN
 has loaded — and by then the payload has already taken the console.
@@ -128,7 +128,7 @@ has loaded — and by then the payload has already taken the console.
 **Getting Linux back after the loop.** Breaking a loop usually means deleting the
 payload, which leaves the install with no loader — the app then has nothing to
 send. Put the file back (a fresh download in the root of a USB stick, or in
-`/data/payloads`) and launch **PS4 Linux**. It copies it next to the kernel as
+`/data/payloads`) and launch **PS4 XFCE Linux**. It copies it next to the kernel as
 `ps4linux-loader.bin` and starts Linux. Nothing needs reinstalling: the image,
 your files and the settings are untouched, and autoload works again if you re-enable
 it. **Recovery -> After a boot loop** in the app has the short version of this

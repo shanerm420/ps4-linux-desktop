@@ -1,4 +1,4 @@
-# Using PS4 Linux
+# Using PS4 XFCE Linux
 
 Everything a person needs, in order: what to have ready, how to install, how to
 start Linux afterwards, and what to do when something goes wrong.
@@ -30,7 +30,7 @@ taking up space. It is a separate app and it only removes that.
 2. Put the loader payload in the **root of a USB stick**, or in
    `/data/payloads` over FTP. Name it something with `linux` in it and end it in
    `.bin` or `.elf`.
-3. Launch **PS4 Linux** from the home screen.
+3. Launch **PS4 XFCE Linux** from the home screen.
 4. **Autoload** - if anything is armed, the app lists it and asks whether to remove
    it. Remove it unless you set it on purpose. (See section 5.)
 5. Choose **Install Linux**.
@@ -74,7 +74,7 @@ see [`docs/RECOVERY.md`](RECOVERY.md).
 
 ## 4. Everyday use: the menu
 
-Launching **PS4 Linux** from the PS4 home screen opens a menu. One entry per
+Launching **PS4 XFCE Linux** from the PS4 home screen opens a menu. One entry per
 category, each with its own submenu. The dialog API has two buttons and no list
 control, so a menu is one entry per screen: **Select** opens the entry shown,
 **Next** shows the next one. Cancel closes the menu and changes nothing.
