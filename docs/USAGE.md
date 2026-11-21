@@ -21,7 +21,7 @@ care about, and read the "before you begin" pages the app shows you.
 - **A USB keyboard** for the first start, to pick the install target on the TV.
 
 Optional: **`PS4Linux-Remove-ChromeOS.pkg`** if an old ChromeOS-for-PS4 install is
-is taking up space. It is a separate app and it only removes that.
+taking up space. It is a separate app and it only removes that.
 
 ## 2. Install
 
