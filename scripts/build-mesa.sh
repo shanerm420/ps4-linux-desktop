@@ -84,12 +84,14 @@ ln -sfn usr/lib64 "$SYS/lib64"
 # libc (that crashes the host tools), so the extra library goes in its own dir.
 mkdir -p "$WORK/extras"
 for _ in 1 2 3 4 5 6; do
+	# `|| true` matters: with pipefail a grep that matches nothing would abort the
+	# script, and "nothing missing" is the normal, finished state.
 	missing=$(LD_LIBRARY_PATH=$WORK/extras ldd "$SYS/usr/bin/llvm-config-19" 2>/dev/null |
-		grep "not found" | awk '{print $1}')
+		grep "not found" | awk '{print $1}' || true)
 	[ -z "$missing" ] && break
 	for lib in $missing; do
-		src=$(ls "$SYS"/usr/lib/x86_64-linux-gnu/$lib* 2>/dev/null | head -1)
-		[ -n "$src" ] && ln -sf "$src" "$WORK/extras/$lib"
+		src=$(ls "$SYS"/usr/lib/x86_64-linux-gnu/$lib* 2>/dev/null | head -1 || true)
+		if [ -n "$src" ]; then ln -sf "$src" "$WORK/extras/$lib"; fi
 	done
 done
 
@@ -104,7 +106,7 @@ done
 printf '#!/bin/sh\nexec %s/usr/bin/llvm-config-19 "$@"\n' "$SYS" > "$WORK/bin/llvm-config"
 chmod +x "$WORK/bin/llvm-config"
 for t in flex bison byacc m4 glslangValidator; do
-	[ -e "$SYS/usr/bin/$t" ] && ln -sf "$SYS/usr/bin/$t" "$WORK/bin/$t"
+	if [ -e "$SYS/usr/bin/$t" ]; then ln -sf "$SYS/usr/bin/$t" "$WORK/bin/$t"; fi
 done
 
 # --- 3. Mesa source and the patch --------------------------------------------
@@ -176,7 +178,7 @@ done
 chips=$(strings "$OUT/lib/x86_64-linux-gnu/libgallium-$MESA_VER.so" | grep -cE '^(LIVERPOOL|GLADIUS)$' || true)
 echo "  PS4 chip names in the driver: $chips (want 2)"
 glibc=$(objdump -p "$OUT/lib/x86_64-linux-gnu/libvulkan_radeon.so" |
-	grep -oE 'GLIBC_[0-9.]+' | sort -uV | tail -1)
+	grep -oE 'GLIBC_[0-9.]+' | sort -uV | tail -1 || true)
 echo "  newest glibc symbol needed:  $glibc (Debian 13 has 2.41)"
 echo "  total:                       $(du -sh "$OUT" | cut -f1) in $OUT"
 [ "$chips" = 2 ] || { echo "the patch did not take - the GPU will not bind" >&2; exit 1; }
