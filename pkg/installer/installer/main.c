@@ -30,6 +30,7 @@
 // Builds with the OpenOrbis toolchain (OO_PS4_TOOLCHAIN); see the repository
 // README for the command and for what remains unverified. Nothing here has run
 // on a PS4 yet.
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdarg.h>
@@ -167,6 +168,7 @@ static int progress_open(const char *msg)
 
 static void progress_set(uint32_t pct, const char *msg)
 {
+	if (pct > 100) pct = 100;	// an adopted loader can push past the estimate
 	sceMsgDialogProgressBarSetValue(0, pct);
 	if (msg) sceMsgDialogProgressBarSetMsg(0, msg);
 	sceMsgDialogUpdateStatus();
@@ -797,6 +799,69 @@ static int copy_file(int in, const char *dst, uint64_t *done, uint64_t total, co
 	return rc;
 }
 
+// ------------------------------------------------------------------ loader
+// The loader payload is the one thing this project does not ship: it is rebuilt
+// per firmware generation and it is somebody else's binary. It is also the only
+// reason to go through GoldHEN's payload menu at all - which is what this app is
+// here to remove. Drop a current payload (ps4-linux-1gb.bin, or the .elf) in the
+// root of a USB stick or in /data/payloads and the app adopts it: copies it next
+// to the kernel as ps4linux-loader.bin, and starts Linux over BinLoader from then
+// on, from this app.
+//
+// Nothing here ever writes an autoload entry. That is what would make a console
+// restart into Linux in a loop on every jailbreak, and it is the reason this app
+// starts the loader itself instead of leaving a file for GoldHEN to run.
+#define LOADER BOOT_DIR "/ps4linux-loader.bin"
+#define LOADER_MIN 4096u	// the package's own placeholder is 89 bytes
+static char LOADER_FOUND[288];
+
+// A payload is a raw binary or an ELF; either is far bigger than the placeholder.
+// Cheap checks only: the real validation is the loader itself refusing to run.
+static int looks_like_loader(const char *path)
+{
+	struct stat st;
+	if (stat(path, &st) != 0 || !S_ISREG(st.st_mode)) return 0;
+	if ((uint64_t)st.st_size < LOADER_MIN) return 0;
+	char head[16];
+	int fd = open(path, O_RDONLY);
+	if (fd < 0) return 0;
+	ssize_t n = read(fd, head, sizeof(head));
+	close(fd);
+	if (n < 8) return 0;
+	if (n >= 11 && !memcmp(head, "PLACEHOLDER", 11)) return 0;
+	return 1;
+}
+
+// Fills LOADER_FOUND and returns 1 when a payload was found. Order matters: the
+// adopted copy next to the kernel first (the one we already know works), then a
+// USB stick (where a fresh download lands), then /data/payloads.
+static int loader_scan(void)
+{
+	static const char *dirs[] = { BOOT_DIR, "/mnt/usb0", "/data/payloads" };
+	char p[288];
+	LOADER_FOUND[0] = 0;
+	for (size_t i = 0; i < sizeof(dirs) / sizeof(dirs[0]); i++) {
+		DIR *d = opendir(dirs[i]);
+		if (!d) continue;
+		struct dirent *e;
+		while ((e = readdir(d)) != NULL) {
+			if (!strstr(e->d_name, "linux") && !strstr(e->d_name, "Linux") &&
+			    !strstr(e->d_name, "LINUX"))
+				continue;
+			const char *dot = strrchr(e->d_name, '.');
+			if (!dot || (strcmp(dot, ".bin") && strcmp(dot, ".elf"))) continue;
+			snprintf(p, sizeof(p), "%s/%s", dirs[i], e->d_name);
+			if (looks_like_loader(p)) {
+				snprintf(LOADER_FOUND, sizeof(LOADER_FOUND), "%s", p);
+				closedir(d);
+				return 1;
+			}
+		}
+		closedir(d);
+	}
+	return 0;
+}
+
 // ------------------------------------------------------------------ payload
 // Streams the payload from the package file straight into GoldHEN's BinLoader
 // socket. There is deliberately no size cap: the upstream AIO loader payloads
@@ -870,7 +935,7 @@ int main(void)
 		quit();
 	}
 
-	int src_fd[N_BOOT_FILES], loader_fd = -1;
+	int src_fd[N_BOOT_FILES];
 	uint64_t total = 0;
 	int no_rootfs = 0;
 	for (size_t i = 0; i < N_BOOT_FILES; i++) {
@@ -889,13 +954,12 @@ int main(void)
 			quit();
 		}
 		total += fd_size(src_fd[i]);
-		if (!strcmp(boot_files[i], "ps4linux-loader.bin")) {
-			loader_fd = src_fd[i];
-			// copied twice: /data/linux/boot (what the loader reads) and
-			// /data/payloads (what GoldHEN's payload menu lists)
-			total += fd_size(src_fd[i]);
-		}
 	}
+	// Look for a real loader payload before anything else: the package carries
+	// only a placeholder, and without one there is nothing to start.
+	int have_loader = loader_scan();
+	klog("loader payload: %s", have_loader ? LOADER_FOUND : "none found");
+
 	snprintf(path, sizeof(path), "%s/chromeos.img.state-start", SRC);
 	if (read_small(path, buf, sizeof(buf)) == 0)
 		start = strtoull(buf, NULL, 10);
@@ -946,12 +1010,24 @@ int main(void)
 			           vram);
 			if (r != 1) quit();
 		}
+		if (!have_loader) {
+			dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
+			       "There is no loader payload on this console yet, so Linux cannot "
+			       "be started from here.\n\n"
+			       "Copy a current PS4 Linux payload (ps4-linux-1gb.bin, or the .elf) "
+			       "into the root of a USB stick, or into /data/payloads, then launch "
+			       "this app again: it picks it up by itself. Any VRAM size will do - "
+			       "the app sets that.\n\n"
+			       "Nothing was changed.");
+			quit();
+		}
+		int lf = open(LOADER_FOUND, O_RDONLY);
 		goldhen_unjailbreak();
-		if (send_payload(loader_fd) != 0) {
+		if (lf < 0 || send_payload(lf) != 0) {
 			dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
 			       "The loader could not be started.\n\nIs GoldHEN's BinLoader "
-			       "server (port 9090) enabled?\n\nYou can also start it yourself: "
-			       "GoldHEN > Payloads > ps4linux-loader.bin");
+			       "server (port 9090) enabled?\n\nNothing else is affected: launch "
+			       "this app again once BinLoader is on.");
 			quit();
 		}
 		for (;;) sceKernelUsleep(1000000);
@@ -1012,6 +1088,22 @@ int main(void)
 		}
 	}
 
+	// Adopt a real loader payload if there is one, replacing the placeholder the
+	// package carries. This is the point of the exercise: the app starts Linux
+	// itself, so the GoldHEN payload menu is never opened and no autoload entry is
+	// ever written - which is what makes consoles restart into Linux in a loop.
+	int loader_ready = 0;
+	if (have_loader && strcmp(LOADER_FOUND, LOADER) != 0) {
+		int lf = open(LOADER_FOUND, O_RDONLY);
+		if (lf >= 0) {
+			if (copy_file(lf, LOADER, &done, total, "loader payload") == 0)
+				loader_ready = 1;
+			close(lf);
+		}
+	} else if (have_loader) {
+		loader_ready = 1;
+	}
+
 	// First start: 1 GB of VRAM. Every guide says the same thing - the install and
 	// the first boot need the RAM more than the GPU does - and 1 GB is what the
 	// loader itself defaults to when vram.txt is missing. Written explicitly so the
@@ -1023,12 +1115,28 @@ int main(void)
 	// loader from that menu is the way in when BinLoader (port 9090) is switched
 	// off. The reference project keeps a copy there for the same reason. Not
 	// fatal if it fails: the BinLoader path above may still work.
-	int payload_copy_failed = 0;
-	if (copy_file(loader_fd, "/data/payloads/ps4linux-loader.bin", &done, total,
-	              "ps4linux-loader.bin for GoldHEN") != 0)
-		payload_copy_failed = 1;
+	int payload_copy_failed = 1;
+	if (loader_ready) {
+		int lf = open(LOADER, O_RDONLY);
+		if (lf >= 0) {
+			if (copy_file(lf, "/data/payloads/ps4linux-loader.bin", &done, total,
+			              "ps4linux-loader.bin for GoldHEN") == 0)
+				payload_copy_failed = 0;
+			close(lf);
+		}
+	}
 	progress_close();
-	if (payload_copy_failed)
+	if (!loader_ready)
+		dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
+		       "No loader payload was found, so Linux cannot be started from this "
+		       "app yet.\n\n"
+		       "Copy a current PS4 Linux payload (ps4-linux-1gb.bin, or the .elf) "
+		       "into the root of a USB stick, or into /data/payloads, then launch "
+		       "this app again: it adopts the file by itself. Any VRAM size will "
+		       "do - the app sets that.\n\n"
+		       "Everything else is already installed. The ps4linux-loader.bin in the "
+		       "package is a placeholder and cannot boot anything.");
+	else if (payload_copy_failed)
 		dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
 		       "The loader was not copied into /data/payloads, so GoldHEN's payload "
 		       "menu will not list it.\n\nStarting Linux from this app still works "
@@ -1086,11 +1194,22 @@ int main(void)
 		quit();
 	}
 
+	if (!loader_ready) {
+		dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
+		       "Everything is installed, but there is no loader payload yet, so "
+		       "Linux cannot be started.\n\n"
+		       "Copy a current PS4 Linux payload (ps4-linux-1gb.bin, or the .elf) "
+		       "into the root of a USB stick, or into /data/payloads, then launch "
+		       "this app again and press Start Linux.");
+		quit();
+	}
+	int lf = open(LOADER, O_RDONLY);
 	goldhen_unjailbreak();
-	if (send_payload(loader_fd) != 0) {
+	if (lf < 0 || send_payload(lf) != 0) {
 		dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
 		       "Everything is in place, but the loader could not be started.\n\n"
-		       "Start it yourself: GoldHEN > Payloads > ps4linux-loader.bin");
+		       "Is GoldHEN's BinLoader server (port 9090) enabled? Launch this app "
+		       "again once it is.");
 		quit();
 	}
 	for (;;) sceKernelUsleep(1000000);

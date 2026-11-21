@@ -11,7 +11,7 @@ assuming anything works.
 | Area | State |
 |---|---|
 | Installer app source (`pkg/installer/`) | Written; type-checks against the real Orbis headers |
-| Installer app compiled to `eboot.bin` | **Built** — 105,008 bytes with clang 18 + `ld.lld` against `link.x` |
+| Installer app compiled to `eboot.bin` | **Built** — 121,760 bytes with clang 18 + `ld.lld` against `link.x` |
 | Installer PKG produced | **Built and validated** — `pkg_validate` 28/28; carries the real kernel, a real initramfs and the Debian/XFCE rootfs. The loader payload is still a placeholder |
 | Installer PKG installed on a console | **Not done** |
 | ChromeOS detection / removal rules | **Implemented and tested** (24 assertions, synthetic tree) |
@@ -131,7 +131,7 @@ in a built toolchain. `make-pkg.sh` fails with a clear message if it is missing.
 | Shell scripts parse | `bash -n scripts/*.sh` | pass |
 | Dummy kernel package builds | `dpkg-deb --build` | pass |
 | Kernel builds | `SB=baikal bash scripts/build-kernel.sh` | pass — `bzImage` 14,251,008 bytes, sha256 `a70b0935…b889`, `HdrS` at 0x202 |
-| Installer app compiles | `make APP=install` | pass — `eboot.bin`, 105,008 bytes |
+| Installer app compiles | `make APP=install` | pass — `eboot.bin`, 121,760 bytes |
 | Installer PKG builds and validates | `WITH_ROOTFS=1 bash scripts/make-pkg.sh`, `PkgTool.Core pkg_validate` | pass — 268,500,992 bytes, 28/28 checks OK, all four assets byte-identical to their sources |
 | Initramfs handoff is really in the init | unpack the packaged `initramfs.cpio.gz`, read `init` | pass — the block after the base's `mount ... /ps4hdd` calls `ps4linux_boot` |
 | Rootfs has a desktop and a login | unpack `rootfs.tar.zst` | pass — `systemd`, `xfce4-session`, `lightdm` (linked as `display-manager.service`), `Xorg`, user `ps4` |
@@ -150,6 +150,13 @@ replaced the package cannot boot.
   (installing needs the RAM more than the GPU does) and offers 1024/2048/3072/4096
   from the app afterwards. The PS4 has a single 8 GB pool: every megabyte given to
   the GPU is taken from system memory.
+- **The loader payload is adopted, not shipped.** It is somebody else's binary,
+  rebuilt per firmware, so the package carries a placeholder. Put a current
+  payload (`ps4-linux-1gb.bin`, or the `.elf`) in the root of a USB stick or in
+  `/data/payloads`; the app copies it next to the kernel as
+  `ps4linux-loader.bin` and starts Linux from its own button over BinLoader.
+  GoldHEN's payload menu is never opened, and no autoload entry is ever written —
+  which is what would make a console restart into Linux on every jailbreak.
 - **The boot directory cannot be namespaced.** The loader's search path is fixed
   upstream, so we own `/data/linux/boot` explicitly and back up what was there.
   See `docs/LAYOUT.md`.
