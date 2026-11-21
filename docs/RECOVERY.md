@@ -142,7 +142,7 @@ journalctl -b -p err
 cat /var/log/ps4-hwprofile.txt
 ```
 
-The most likely causes, in order: the PS4-Patched Mesa is missing from
+The most likely causes, in order: the PS4-patched Mesa is missing from
 `/opt/ps4-mesa` (so `radeonsi` never binds), or `/boot` was not remounted
 read-only and something wrote to it.
 
@@ -161,4 +161,4 @@ both slots are broken, use the USB rescue shell and restore from
    and `/data/payloads`.
 4. If `backups.txt` lists files that were moved aside, rename them back.
 
-Nothing else on the console affects.
+Nothing else on the console is affected.
