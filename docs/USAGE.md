@@ -60,10 +60,14 @@ The screen goes to the Debian boot, then a login as user **`ps4`**, password
   up in the PS4 system, exactly as before.
 - **Sound and picture** are over HDMI. The DualShock 4 works over USB or Bluetooth.
 - **Wi-Fi** is set up with NetworkManager (the network icon in the panel).
+- **Graphics** are the PS4-patched Mesa from `/opt/ps4-mesa`, not the distro's
+  copy. `glxinfo -B` should name a Radeon (Liverpool or Gladius) and `vulkaninfo
+  --summary` should list the amdgpu device. If both say llvmpipe, the GPU did not
+  bind - the desktop still works, slowly. See section 10.
 - **Software** installs normally: `sudo apt update && sudo apt install ...`,
-  Flatpak, Steam. Updates do not need a new PKG. The kernel, the initramfs and the
-  loader are pinned and are only changed by a new package, so a bad update cannot
-  break the boot path.
+  Flatpak, Steam. Updates do not need a new PKG. The kernel, the initramfs, the
+  loader and the patched Mesa are pinned and are only changed by a new package, so
+  a bad update cannot break the boot path or take the GPU away.
 
 If the desktop does not come up, switch to a text console with `Ctrl+Alt+F2` and
 see [`docs/RECOVERY.md`](RECOVERY.md).
@@ -153,6 +157,7 @@ loads, and by then the payload has already taken the console. So:
 | Black screen, LED white | Wait a minute, power off by holding the button, start the console, launch the app again - the install resumes. |
 | Console restarts over and over | An autoload entry is firing. See the boot-loop section of [`docs/RECOVERY.md`](RECOVERY.md). |
 | Desktop does not start | `Ctrl+Alt+F2`, then `systemctl --failed` and `journalctl -b -p err`. |
+| Desktop works but everything is slow | `glxinfo -B`: if it says llvmpipe, the patched Mesa did not bind the GPU. See section 10. |
 
 The rescue shell is always available: put an empty file named `ps4linux-recovery`
 in the root of a FAT32 stick (**Recovery -> Rescue flag on a USB stick** writes it
@@ -162,8 +167,8 @@ you a shell, because the loader checks USB first.
 ## 7. Updating
 
 - **Linux itself:** `sudo apt update && sudo apt full-upgrade`. Normal Debian.
-- **The kernel, initramfs and loader:** only change with a new package. That is
-  deliberate - they are the boot path.
+- **The kernel, initramfs, loader and patched Mesa:** only change with a new
+  package. That is deliberate - they are the boot and graphics path.
 - **The app:** install the newer `PS4Linux.pkg` over the old one. Your install,
   your image and your files are untouched.
 
@@ -182,14 +187,19 @@ that need to go.
 
 ## 9. Building it yourself
 
-See [`docs/BUILD-PKG.md`](BUILD-PKG.md) for the package, and
+See [`docs/BUILD-PKG.md`](BUILD-PKG.md) for the package,
+[`scripts/build-mesa.sh`](../scripts/build-mesa.sh) for the patched Mesa, and
 [ps4-linux-kernel](https://github.com/shanerm420/ps4-linux-kernel) for the kernel
 on its own (provenance, `build.sh`, checksums).
 
 ## 10. What is still missing
 
-- **Mesa is unpatched Debian.** `/opt/ps4-mesa` is not in the image, so expect
-  software rendering until `scripts/build-mesa.sh` has been run on a host with
-  Docker.
+- **Graphics are built but unproven.** The image carries a PS4-patched Mesa 25.0.7
+  in `/opt/ps4-mesa` (radeonsi for OpenGL, RADV for Vulkan, Liverpool and Gladius
+  recognised), built by `scripts/build-mesa.sh` and selected through libglvnd. The
+  patch is the same device-id and chip-init one fail0verflow published; what has
+  never happened is a PS4 actually binding the card. If `glxinfo -B` reports
+  llvmpipe, that is what you are seeing, and the distro's Mesa is still there as a
+  fallback so the desktop stays usable.
 - **Nothing has run on a console.** Every hardware row in
   [`docs/TEST-MATRIX.md`](TEST-MATRIX.md) is `untested`.
