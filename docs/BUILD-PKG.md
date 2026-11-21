@@ -69,7 +69,7 @@ PkgTool.Core pkg_extract  IV0000-...pkg /tmp/x
   `uroot/sce_module/{libc,libSceFios2}.prx`, `uroot/sce_sys/about/right.sprx`,
   `uroot/sce_sys/keystone`.
 - `IV0000-PS4LNX001_00-PS4LINUXDESKTOP0.pkg`, 17,039,360 bytes - built with
-  `WITH_ROOTFS=0 K=<kernel dir> scripts/make-pkg.sh`, `pkg_validate` 28/28 OK.
+  `WITH_ROOTFS=0 K=<kernel dir> bash scripts/make-pkg.sh`, `pkg_validate` 28/28 OK.
   Contents: `uroot/eboot.bin`, `uroot/sce_module/{libc,libSceFios2}.prx`,
   `uroot/sce_sys/{about/right.sprx,icon0.png,keystone}`,
   `uroot/assets/ps4linux/{bzImage,initramfs.cpio.gz,ps4linux-loader.bin,build-id}`.
@@ -87,8 +87,12 @@ refuses to package without them; `$K` defaults to `out/kbuild/out`, which is
 where `scripts/build-kernel.sh` puts its result. A prebuilt kernel works too:
 
 ```sh
-K=/path/to/dir-with-bzImage-and-.config WITH_ROOTFS=0 scripts/make-pkg.sh
+K=/path/to/dir-with-bzImage-and-.config WITH_ROOTFS=0 bash scripts/make-pkg.sh
 ```
+
+The scripts are called through `bash` because the executable bit is not set in
+the repository yet; `git update-index --chmod=+x scripts/*.sh` on a clone with
+push rights fixes that for good.
 
 The staged assets under `pkg/installer/assets/` are gitignored - they are build
 output, and a 14 MB kernel does not belong in the repository. The kernel this

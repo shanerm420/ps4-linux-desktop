@@ -81,8 +81,8 @@ refuses `.zst`). You then use two sticks on the console: a SOURCE stick holding
 those three files, and an empty TARGET stick that gets erased and installed onto.
 
 ```sh
-sudo PROFILE=minimal scripts/make-test-usb.sh   # console only, fastest
-sudo PROFILE=desktop scripts/make-test-usb.sh   # XFCE
+sudo PROFILE=minimal bash scripts/make-test-usb.sh   # console only, fastest
+sudo PROFILE=desktop bash scripts/make-test-usb.sh   # XFCE
 ```
 
 This deliberately uses the stock kernel and stock initramfs, so a failure is
@@ -95,18 +95,21 @@ Prerequisites: x86-64 Linux host, ~30 GB free, `debootstrap`, `zstd`,
 `squashfs-tools`, `sgdisk`, Docker (Mesa), and a **built** OpenOrbis toolchain.
 
 ```sh
+# The scripts are invoked through bash because the executable bit is not set in
+# this repository yet (`git update-index --chmod=+x scripts/*.sh` fixes that).
+
 # Use the toolchain *release*, not the git repository: bin/linux/ is empty until
 # a release build. This is the archive the PKGs here were built with.
 curl -LO https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain/releases/download/v0.5.4/toolchain-llvm-18.tar.gz
 tar -xzf toolchain-llvm-18.tar.gz
 export OO_PS4_TOOLCHAIN=$PWD/OpenOrbis/PS4Toolchain
 
-SB=baikal        scripts/build-kernel.sh          # -> out/kbuild/out/bzImage
+SB=baikal        bash scripts/build-kernel.sh          # -> out/kbuild/out/bzImage
 # already have a bzImage + .config? skip the build and point K at that directory:
-#   K=/path/to/kernel  scripts/make-pkg.sh
-PS4_MESA=...     scripts/build-rootfs.sh
-                 scripts/build-initramfs.sh
-                 scripts/make-pkg.sh
+#   K=/path/to/kernel  bash scripts/make-pkg.sh
+PS4_MESA=...     bash scripts/build-rootfs.sh
+                 bash scripts/build-initramfs.sh
+                 bash scripts/make-pkg.sh
 ```
 
 The git repository of the toolchain is **not** enough: `bin/linux/` is empty
@@ -122,9 +125,9 @@ in a built toolchain. `make-pkg.sh` fails with a clear message if it is missing.
 | Installer type-checks | `cc -fsyntax-only -D__ORBIS__ -I$OO/include -isystem $OO/include/orbis pkg/installer/installer/main.c` | pass |
 | Shell scripts parse | `bash -n scripts/*.sh` | pass |
 | Dummy kernel package builds | `dpkg-deb --build` | pass |
-| Kernel builds | `SB=baikal scripts/build-kernel.sh` | pass — `bzImage` 14,251,008 bytes, sha256 `a70b0935…b889`, `HdrS` at 0x202 |
+| Kernel builds | `SB=baikal bash scripts/build-kernel.sh` | pass — `bzImage` 14,251,008 bytes, sha256 `a70b0935…b889`, `HdrS` at 0x202 |
 | Installer app compiles | `make APP=install` | pass — `eboot.bin`, 105,008 bytes |
-| Installer PKG builds and validates | `WITH_ROOTFS=0 scripts/make-pkg.sh`, `PkgTool.Core pkg_validate` | pass — 17,039,360 bytes, 28/28 checks OK, kernel inside the PKG matches the built one byte for byte |
+| Installer PKG builds and validates | `WITH_ROOTFS=0 bash scripts/make-pkg.sh`, `PkgTool.Core pkg_validate` | pass — 17,039,360 bytes, 28/28 checks OK, kernel inside the PKG matches the built one byte for byte |
 
 Not checked: any rootfs or initramfs build, installing a PKG on a console, and
 every hardware behaviour. The installer PKG is structurally valid but not
