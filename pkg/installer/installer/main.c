@@ -51,7 +51,7 @@
 #include <orbis/libkernel.h>
 #include <orbis/Net.h>
 
-#define APP_NAME "PS4 Linux"
+#define APP_NAME "PS4 XFCE Linux"
 
 // ------------------------------------------------------------------ paths
 // The loader's search order is fixed by upstream (USB first, then
@@ -59,9 +59,9 @@
 // sharing /data/linux/boot, so we own it explicitly: back up anything we find
 // there, record it in a manifest, and offer to restore on uninstall.
 static const char *src_candidates[] = {
-	"/app0/assets/ps4linux",
-	"/mnt/sandbox/pfsmnt/PS4LNX001-app0/assets/ps4linux",
-	"/mnt/sandbox/PS4LNX001_000/app0/assets/ps4linux",
+		"/app0/assets/ps4linux",
+		"/mnt/sandbox/pfsmnt/PS4LNX001-app0/assets/ps4linux",
+		"/mnt/sandbox/PS4LNX001_000/app0/assets/ps4linux",
 };
 static char SRC[128];
 #define BOOT_DIR "/data/linux/boot"
@@ -1379,7 +1379,7 @@ int main(void)
 	}
 	mkdirs(BOOT_DIR);
 	mkdirs("/data/payloads");
-	if (progress_open("Copying PS4 Linux ...") < 0) quit();
+	if (progress_open("Copying PS4 XFCE Linux ...") < 0) quit();
 	uint64_t done = 0;
 	for (size_t i = 0; i < N_BOOT_FILES; i++) {
 		if (src_fd[i] < 0) continue;	// optional asset that is not in this build
