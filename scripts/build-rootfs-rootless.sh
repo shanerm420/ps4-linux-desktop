@@ -18,9 +18,11 @@
 #
 # What this does NOT do: run package postinst scripts. Fonts, icon caches and a
 # few /etc files a postinst would create are therefore missing; systemd, XFCE,
-# lightdm and X all work without them. It also does not build the PS4-patched
-# Mesa (that needs Docker and hours - scripts/build-mesa.sh), so the image falls
-# back to software rendering until /opt/ps4-mesa exists.
+# lightdm and X all work without them.
+#
+# The PS4-patched Mesa is built separately (scripts/build-mesa.sh, also no root)
+# and copied in when PS4_MESA points at it. Without that the image falls back to
+# software rendering, because stock Mesa does not bind the PS4 GPU.
 #
 # Needs: apt-get, dpkg-deb, gcc, tar, a *static* zstd (ZSTD=...), and proot for
 # step 4 only (https://github.com/proot-me/proot releases, single binary).
@@ -33,6 +35,7 @@ PROOT=${PROOT:-proot}
 ZSTD=${ZSTD:-zstd}
 USER_NAME=${USER_NAME:-ps4}
 USER_PASS=${USER_PASS:-ps4linux}
+PS4_MESA=${PS4_MESA:-}            # directory produced by scripts/build-mesa.sh
 
 PKGS="xfce4 xfce4-terminal thunar lightdm lightdm-gtk-greeter
 	network-manager pipewire pipewire-pulse wireplumber alsa-utils
@@ -125,12 +128,37 @@ chmod 0440 "$R/etc/sudoers.d/10-$USER_NAME"
 
 # --- our own overlay from the repository
 for f in etc/apt/preferences.d/ps4-components etc/environment \
+         etc/ld.so.conf.d/00-ps4-mesa.conf \
          etc/systemd/system/ps4-boot-ro.service etc/systemd/system/ps4-hwprofile.service \
-         usr/share/vulkan/icd.d/ps4-mesa.json; do
+         usr/share/vulkan/icd.d/ps4-mesa.json \
+         usr/share/glvnd/egl_vendor.d/10-ps4-mesa.json; do
 	install -D -m 0644 "$HERE/../rootfs/$f" "$R/$f"
 done
 gcc -O2 -Wall -Wextra -o "$R/usr/local/bin/ps4-hwprofile" "$HERE/../tools/hwprofile.c"
 chmod 0755 "$R/usr/local/bin/ps4-hwprofile"
+
+# --- the PS4-patched Mesa, if one was built (scripts/build-mesa.sh).
+# Stock Mesa does not bind the PS4 GPU, so without this the image boots into
+# software rendering. The libraries stay in /opt so an apt upgrade cannot
+# replace them; libglvnd reaches them through these two symlinks, which are
+# named ps4-mesa to match __GLX_VENDOR_LIBRARY_NAME in etc/environment.
+if [ -n "$PS4_MESA" ] && [ -d "$PS4_MESA" ]; then
+	mkdir -p "$R/opt/ps4-mesa" "$R/usr/lib/x86_64-linux-gnu"
+	cp -a "$PS4_MESA/." "$R/opt/ps4-mesa/"
+	ln -sf /opt/ps4-mesa/lib/x86_64-linux-gnu/libGLX_mesa.so.0.0.0 \
+		"$R/usr/lib/x86_64-linux-gnu/libGLX_ps4-mesa.so.0"
+	ln -sf /opt/ps4-mesa/lib/x86_64-linux-gnu/libEGL_mesa.so.0.0.0 \
+		"$R/usr/lib/x86_64-linux-gnu/libEGL_ps4-mesa.so.0"
+	for g in "$R"/opt/ps4-mesa/lib/x86_64-linux-gnu/libgallium-*.so; do
+		[ -e "$g" ] || continue
+		ln -sf "/opt/ps4-mesa/lib/x86_64-linux-gnu/$(basename "$g")" \
+			"$R/usr/lib/x86_64-linux-gnu/$(basename "$g")"
+	done
+	echo "  mesa: $(du -sh "$R/opt/ps4-mesa" | cut -f1) in /opt/ps4-mesa (PS4-patched)"
+else
+	echo "WARNING: PS4_MESA not set - the image gets stock Mesa, which does not" >&2
+	echo "         bind the PS4 GPU. Run scripts/build-mesa.sh first." >&2
+fi
 
 # Unit links. `systemctl --root` cannot enable lightdm here: lightdm ships a SysV
 # script, and systemd-sysv-install then wants a real chroot.

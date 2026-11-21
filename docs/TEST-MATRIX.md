@@ -1,8 +1,8 @@
 # Test matrix
 
-**Status: every row below is UNTESTED.** No PS4 hardware was available while this
-tree was written. Nothing here may be described as working until a row is filled
-in with a console, a date and a result.
+**Status: every console row below is UNTESTED.** No PS4 hardware was available
+while this tree was written. Nothing here may be described as working until a row
+is filled in with a console, a date and a result.
 
 **Target console:** PS4 Pro, Baikal southbridge, firmware 12.52, GoldHEN. That is
 the `Baikal (Pro)` column: fill that one first and leave the others alone until a
@@ -30,8 +30,8 @@ model.
 | Space reservation completes | untested | untested | untested | untested | |
 | Install resumes after interruption | untested | untested | untested | untested | |
 | First boot to desktop | untested | untested | untested | untested | |
-| GPU acceleration (radeonsi) | untested | untested | untested | untested | needs PS4-patched Mesa |
-| Vulkan device present | untested | untested | untested | untested | `vulkaninfo` |
+| GPU acceleration (radeonsi) | untested | untested | untested | untested | patched Mesa 25.0.7 is built and inside the PKG; whether radeonsi binds is the open question |
+| Vulkan device present | untested | untested | untested | untested | `vulkaninfo`, ICD points at /opt |
 | HDMI audio | untested | untested | untested | untested | disputed in upstream reports |
 | Ethernet | untested | untested | untested | untested | vendor `mts.ko` |
 | Wi-Fi 88W8797 | untested | n/a | n/a | n/a | SDIO 02df:9129 |
@@ -62,17 +62,20 @@ These are host-side checks, not console tests:
 | Coexisting plain-Linux install survives ChromeOS removal | pass |
 | `tools/hwprofile.c` builds and runs | pass; correctly reports "not a PS4" on a normal machine |
 | `pkg/installer/installer/main.c` type-checks against the real Orbis headers | pass (`cc -fsyntax-only`, warnings only from SDK headers) |
-| `main.c` compiles to an `eboot.bin` | pass — 105,008 bytes, clang 18 + `ld.lld` (OpenOrbis release v0.5.4) |
-| PKG builds | pass — installer 17,039,360 bytes, remover 6,619,136 bytes, `pkg_validate` 28/28 on both |
+| `main.c` compiles to an `eboot.bin` | pass — 122,432 bytes, clang 18 + `ld.lld` (OpenOrbis release v0.5.4) |
+| PKG builds | pass — app 278,659,072 bytes, remover 6,619,136 bytes, `pkg_validate` 28/28 on both |
+| PS4-patched Mesa builds (`scripts/build-mesa.sh`) | pass — Mesa 25.0.7, 1,470 targets, 0 failures, 42 MB staged, `LIVERPOOL`/`GLADIUS` in the driver, newest glibc symbol 2.38 |
+| Mesa really is in the image | pass — unpacked the packaged `rootfs.tar.zst`, 40 files under `/opt/ps4-mesa`, plus the glvnd symlinks |
 | PKG installs on a console | **not done** — needs a PS4 |
 | Kernel builds | pass — `7.3.4-PS4Linux-baikal+`, 14,251,008 bytes, sha256 `a70b0935…b889` |
 | Kernel inside the installer PKG is the built one | pass — extracted `bzImage` hashes identically |
-| Rootfs and initramfs builds | **not done** — need the initramfs-ps4 base and hours of `debootstrap` |
-| PKG is bootable | **no** — its `initramfs.cpio.gz` and `ps4linux-loader.bin` are marked placeholders |
+| Rootfs and initramfs build | pass — Debian 13 + XFCE, 20,776 entries, 231,872,740-byte `rootfs.tar.zst` |
+| radeonsi binds the PS4 GPU | **not done** — needs a PS4 |
 
 ## Reporting a result
 
 Run `ps4-hwprofile` on the console and attach its output. It prints the CPUID
 family/model, the SDIO ids that identify the wireless chip, and the driver bound
 to each device — so a report says which hardware it was, not which model the
-console is supposed to be.
+console is supposed to be. Then `glxinfo -B` and `vulkaninfo --summary` say
+whether the patched Mesa bound the GPU.
