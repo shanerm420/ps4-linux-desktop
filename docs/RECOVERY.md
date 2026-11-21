@@ -38,7 +38,8 @@ The install itself is already finished at that point; only the launch is missing
 
 Start it by hand:
 
-1. GoldHEN menu -> **Payloads**
+1. GoldHEN menu -> **Utilitys** -> **PayLoader** -> **LaunchPad**
+   (older builds call the section **Payloads**)
 2. choose `ps4linux-loader.bin`
 3. the console restarts into Linux
 
@@ -46,6 +47,10 @@ This is the route with the strongest evidence behind it. The reference console
 runs ChromeOS for PS4, which uses the same loader family (`ps4-linux-loader`) and
 is started from that same menu, so launching the payload by hand is proven on
 that hardware even where the automatic path is not.
+
+GoldHEN needs to be **2.4b18.10 or newer** for the built-in payloader according to
+upstream's guide, though the reference console runs an older build and its menu
+works. If your menu is missing or empty, that is the first thing to check.
 
 The loader lives in two places: `/data/linux/boot/ps4linux-loader.bin` (what the
 loader reads at boot) and `/data/payloads/ps4linux-loader.bin` (what the menu
@@ -96,9 +101,9 @@ refuses to - so the entry came from a manual step or a third-party autoloader.
 
 **Honest limits of this advice:** I could not verify NextHEN's supported-firmware
 matrix, so step 2 is not universal. The autoload path also differs by GoldHEN
-version. Inspect the GoldHEN menu and folders on *your* firmware instead of
+version. Inspect the GoldHEN menu and folders on *your* firmare instead of
 trusting a path from a document. If no non-autoloading enabler exists for your
-firmware, treat that firmware as unproven for recovery and record it in
+firmware, treat that firmare as unproven for recovery and record it in
 `docs/TEST-MATRIX.md`.
 
 ## Linux boots but the desktop does not start
@@ -108,7 +113,7 @@ Switch to a text console (`Ctrl+Alt+F2`) and check:
 ```
 systemctl --failed
 journalctl -b -p err
-cat /var/log/ps4-hwprofile.txt
+cat /var/log/ps4-hwprophile.txt
 ```
 
 The most likely causes, in order: the PS4-patched Mesa is missing from
