@@ -1,154 +1,158 @@
 # PS4 Linux Desktop
 
-A Debian 13 + XFCE Linux desktop for jailbroken PS4 consoles, delivered as PS4
-homebrew packages. It replaces a ChromeOS-for-PS4 installation with a normal
-desktop distribution that takes ordinary `apt`/Flatpak/Steam updates.
+A full Linux distribution for jailbroken PS4 consoles, installed from a PS4 PKG.
+Replaces the ChromeOS-based installer with Debian + XFCE.
 
-**Status: the packages build and validate; nothing has run on a PS4.** The table
-below is the whole truth about what is proven and what is not.
+**This tree is a working skeleton, not a release.** Read the status table before
+assuming anything works.
+
+## Status
+
+| Area | State |
+|---|---|
+| Installer app source (`pkg/installer/`) | Written; type-checks against the real Orbis headers |
+| Installer app compiled to `eboot.bin` | **Built** — 105,008 bytes with clang 18 + `ld.lld` against `link.x` |
+| Installer PKG produced | **Built and validated** — `pkg_validate` reports every hash and signature OK; carries the real kernel, but its initramfs and loader are still placeholders |
+| Installer PKG installed on a console | **Not done** |
+| ChromeOS detection / removal rules | **Implemented and tested** (24 assertions, synthetic tree) |
+| Hardware detection tool | **Built and run** on a normal Linux host |
+| Image validator (`scripts/check-image.sh`) | **Run** against real images: passes a good one, rejects an `orphan_file` one |
+| Kernel build (`scripts/build-kernel.sh`) | **Run** — produced a 14,251,008-byte `bzImage`, release `7.3.4-PS4Linux-baikal+` |
+| Rootfs / initramfs build scripts | Written; **never run end to end** |
+| Debian rootfs built and booted on a PS4 | **Not done** |
+| Anything at all tested on PS4 hardware | **Nothing** |
+
+`docs/TEST-MATRIX.md` lists every hardware test with its real status. Every row
+is `untested`, because no console was available.
+
+## The two packages
+
+| Package | TITLE_ID | What it does |
+|---|---|---|
+| PS4 Linux Desktop | `PS4LNX001` | Installs Linux: briefing, target, size, reserve, start |
+| PS4 Linux: Remove ChromeOS | `PS4LNX002` | Removes a ChromeOS-for-PS4 install, and nothing else |
+
+Separate on purpose. The installer never deletes a file that existed before it
+ran - its `unlink()` calls only clean up temporary files it created itself - so
+"install Linux" cannot erase an existing install, whatever the dialogs do. The
+remover is the only code that removes user data, it lists every path with its
+size first, and it asks twice. It cannot install anything.
+
+If a ChromeOS install is present, the installer says so and installs beside it,
+pointing at the remover for the space. Both apps are built from one tree:
+`make APP=install` and `make APP=remove`, which `scripts/make-pkg.sh` runs in
+sequence and cleans between, because the intermediate names are shared.
 
 ## Reference console
 
 Development target: **PS4 Pro, Baikal southbridge, firmware 12.52, GoldHEN.**
 
-Two facts about that machine are established and are not claims about this code:
+The `Baikal (Pro)` column of the test matrix is the one to fill first. Two facts
+about this machine are established, and neither is a claim about this software:
 the Linux loader lists firmware 12.50/12.52 as supported, and a ChromeOS-for-PS4
-install has booted on it from the internal drive, which proves the drive key,
-AES-XTS and UFS2 with `--skip 111669149696` work on this board.
+install has booted on it — which proves the drive key, AES-XTS and UFS2 with
+`--skip 111669149696` work on this exact board. Everything else here is still
+unproven.
 
-## Two packages, two apps
+Two traps that cost people a boot, both documented upstream:
 
-| Package | TITLE_ID | Source | What it does |
-|---|---|---|---|
-| PS4 Linux Desktop | `PS4LNX001` | `pkg/installer/installer/main.c` | Briefing, target, size, reserve, start Linux |
-| PS4 Linux: Remove ChromeOS | `PS4LNX002` | `pkg/installer/installer/remove.c` | Removes a ChromeOS-for-PS4 install, and nothing else |
+- **GoldHEN v2.4b18.8 does not boot the loader.** Use the latest GoldHEN.
+- **The kernel tree is GitLab `gitlab.com/rmuxnet/linux`, branch `ps4/7.3.4`.**
+  One branch covers Aeolia, Belize and Baikal; the southbridge is detected at
+  runtime. `scripts/build-kernel.sh` clones exactly that and nothing else.
 
-They are separate on purpose. The installer never deletes a file that existed
-before it ran - its `unlink()` calls only clean up temporary files it created -
-so "install Linux" cannot erase an existing install. The remover is the only code
-that removes user data: it lists every path with its size, asks twice, deletes,
-then re-scans to report what actually went.
+## Layout
 
-## What is verified
+```
+pkg/installer/          the PS4 app (OpenOrbis C) + Makefile
+scripts/                build-kernel.sh, build-rootfs.sh, build-initramfs.sh, make-pkg.sh
+initramfs/              our boot/install function + the early recovery hook
+rootfs/                 files installed into the Debian image (apt pins, units, ICD json)
+tools/                  hwprofile.c (hardware truth), chromeos-scan.c (removal rules + test)
+docs/                   ARCHITECTURE, LAYOUT, RECOVERY, TEST-MATRIX
+```
 
-| Check | Result |
-|---|---|
-| `eboot.bin` compiles and links | yes - 87,456 bytes, clang 18, `x86_64-pc-freebsd12-elf` |
-| SELF layout | 8 entries, matching the layout that launches on hardware |
-| `DT_SCE_FILENAME` | relative (`build/remove.elf`), not a host path |
-| `pkg_validate` | 28/28 OK - header digest, SC entry hashes, signatures, RIF |
-| Inner PFS contents | `eboot.bin`, `libc.prx`, `libSceFios2.prx`, `right.sprx`, `keystone` |
-| PKG size | 6,619,136 bytes - identical to the reference working package |
-| ChromeOS removal rules | 28/28 assertions on a synthetic tree (games, saves and other installs survive) |
-| Image builder | produces an image that passes all six checks, fully allocated |
-| Image validator | rejects an image with `orphan_file`, warns on a sparse one |
-| Hardware detection tool | builds and runs on a normal Linux host |
+## Fastest path to a result on hardware
 
-## What is NOT verified
-
-- **Nothing has been installed or launched on a PS4.** No console was available.
-- The remover's dialog flow has never been displayed on hardware.
-- The installer package builds, but with placeholder assets: it is not shippable
-  until it carries a real `bzImage`, `initramfs.cpio.gz`, `ps4linux-loader.bin`
-  and optionally `rootfs.tar.zst`.
-- Kernel, rootfs and patched Mesa have never been built here.
-
-## Build
-
-Requires an OpenOrbis PS4 toolchain (release build, not the git repo) plus clang
-and lld. On an ARM64 host, the community ARM64 kit provides `bin/linux/`
-wrappers, so this Makefile works unchanged.
+`scripts/make-test-usb.sh` builds a testable USB set with **no toolchain and no
+PKG**: a prebuilt kernel (pinned URL), an initramfs repacked from the
+initramfs-ps4 base, and a Debian rootfs as `distro.tar.xz` (the stock installer
+refuses `.zst`). You then use two sticks on the console: a SOURCE stick holding
+those three files, and an empty TARGET stick that gets erased and installed onto.
 
 ```sh
-export OO_PS4_TOOLCHAIN=/path/to/OpenOrbis/PS4Toolchain
-export DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1     # PkgTool.Core is .NET; needs this on minimal images
-
-cd pkg/installer
-make clean && make APP=remove     # -> IV0000-PS4LNX002_00-PS4LINUXREMOVER0.pkg
-make clean && make APP=install    # -> IV0000-PS4LNX001_00-PS4LINUXDESKTOP0.pkg
+sudo PROFILE=minimal scripts/make-test-usb.sh   # console only, fastest
+sudo PROFILE=desktop scripts/make-test-usb.sh   # XFCE
 ```
 
-Clean between the two: `eboot.bin`, `pkg.gp4` and `sce_sys/param.sfo` are shared
-intermediates. Nothing is committed that the toolchain can supply: the runtime
-modules and the package artwork are copied in at build time, so a checkout is
-three files and a Makefile.
+This deliberately uses the stock kernel and stock initramfs, so a failure is
+attributable. Our installer app, the PKG, the recovery flag and the `/opt` Mesa
+come in later stages.
 
-### Four traps that cost real time
+## Build order
 
-1. `PkgTool.Core` aborts with "Couldn't find a valid ICU package" - set
-   `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1`.
-2. `pkg_build` says "No usable version of libssl was found" - it links OpenSSL
-   1.1; supply `libssl1.1` on `LD_LIBRARY_PATH` on a modern distro.
-3. The standalone LLVM 18.1.8 tarball needs `libtinfo.so.5`, absent on Ubuntu
-   24.04. Installing `clang` from the distro avoids this.
-4. `CONTENT_ID` must be exactly 36 characters (`IV0000-` + 9-char TITLE_ID +
-   `_00-` + 16 chars). LibOrbisPkg answers a wrong length with a .NET stack
-   trace; `make` now checks first.
+Prerequisites: x86-64 Linux host, ~30 GB free, `debootstrap`, `zstd`,
+`squashfs-tools`, `sgdisk`, Docker (Mesa), and a **built** OpenOrbis toolchain.
 
-### Installing on the console
+```sh
+# Use the toolchain *release*, not the git repository: bin/linux/ is empty until
+# a release build. This is the archive the PKGs here were built with.
+curl -LO https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain/releases/download/v0.5.4/toolchain-llvm-18.tar.gz
+tar -xzf toolchain-llvm-18.tar.gz
+export OO_PS4_TOOLCHAIN=$PWD/OpenOrbis/PS4Toolchain
 
-Copy the `.pkg` to the root of a USB stick, then GoldHEN -> Package Installer
-(or Debug Settings -> Game -> Package Installer). These are fake-signed packages:
-they require GoldHEN and will not install on a stock console. If an older build
-with the same content ID is installed, delete it first.
-
-## Storage model
-
-Internal installs are **one fully-allocated ext4 file**, not a partition table.
-PS4-Multiboot maps *file* blocks through `blockmap`/`FIBMAP`, so a partition table
-inside the image has nothing to map against. Consequences: the image must have no
-holes, the label must end in `-PS4`, size is fixed at build time, and the
-filesystem must not carry `orphan_file` (kernels older than 5.15 cannot mount it).
-
-Kernel and initramfs live in `/data/linux/boot`, which the loader reads before any
-filesystem exists. The loader's search order is fixed upstream, so this project
-claims those filenames explicitly and backs up anything it finds there.
-
-## Repository layout
-
-```
-pkg/installer/          the two OpenOrbis apps + Makefile
-scripts/                toolchain, kernel, rootfs, Mesa, image, initramfs and PKG builds
-docs/                   architecture, storage layout, recovery, test matrix
-tools/                  hardware detection and ChromeOS removal scanners
-rootfs/                 files installed into the Debian image
-initramfs/              the boot/install function sourced by the initramfs
+SB=baikal        scripts/build-kernel.sh          # -> out/kbuild/out/bzImage
+# already have a bzImage + .config? skip the build and point K at that directory:
+#   K=/path/to/kernel  scripts/make-pkg.sh
+PS4_MESA=...     scripts/build-rootfs.sh
+                 scripts/build-initramfs.sh
+                 scripts/make-pkg.sh
 ```
 
-| Path | Purpose |
-|---|---|
-| `scripts/get-toolchain.sh` | fetch and verify the OpenOrbis toolchain |
-| `scripts/build-kernel.sh` | one kernel per southbridge, `-march=btver2`, firmware built in |
-| `scripts/build-rootfs.sh` | debootstrap trixie, desktop, Mesa check |
-| `scripts/build-mesa.sh` | patched Mesa into `/opt/ps4-mesa`; refuses without the patch set |
-| `scripts/build-rootimg.sh` | rootfs -> one fully allocated ext4 image, label `-PS4`, validated |
-| `scripts/build-initramfs.sh` | repack the base initramfs with our boot function |
-| `scripts/check-image.sh` | the six properties Multiboot needs, before the console sees it |
-| `scripts/make-pkg.sh` | stage assets, build both PKGs, refuse debug kernels |
-| `scripts/make-test-usb.sh` | stock-kernel test stick, works on a phone without root |
-| `tools/hwprofile.c`, `.sh` | what the kernel actually detects; says "unknown" rather than guessing |
-| `tools/chromeos-scan.c` | the removal rule set, with a dry run and a confirmation token |
-| `tools/test-chromeos-scan.sh` | 28 assertions on a synthetic tree |
+The git repository of the toolchain is **not** enough: `bin/linux/` is empty
+until `build.sh` runs, and `PkgTool.Core` (Sony's packaging tool) is only present
+in a built toolchain. `make-pkg.sh` fails with a clear message if it is missing.
 
-### What is deliberately not in the repository
+## What has actually been checked
 
-The kernel tree, the Debian rootfs, the disk image, the loader payload, the PS4
-Mesa patch set and the toolchain are all fetched or built, not committed -
-together they are tens of gigabytes. The `.pkg` files are build output.
-`tools/chromeos-scan` and `tools/hwprofile` are committed as source only;
-`build-rootfs.sh` compiles the latter and falls back to the shell version.
+| Check | Command | Result |
+|---|---|---|
+| Hardware tool builds, runs | `cc -O2 -Wall -Wextra -o hwprofile tools/hwprofile.c` | 0 warnings; reports "not a PS4" on a PC, as designed |
+| Removal rules | `tools/test-chromeos-scan.sh` | 24/24 assertions pass |
+| Installer type-checks | `cc -fsyntax-only -D__ORBIS__ -I$OO/include -isystem $OO/include/orbis pkg/installer/installer/main.c` | pass |
+| Shell scripts parse | `bash -n scripts/*.sh` | pass |
+| Dummy kernel package builds | `dpkg-deb --build` | pass |
+| Kernel builds | `SB=baikal scripts/build-kernel.sh` | pass — `bzImage` 14,251,008 bytes, sha256 `a70b0935…b889`, `HdrS` at 0x202 |
+| Installer app compiles | `make APP=install` | pass — `eboot.bin`, 105,008 bytes |
+| Installer PKG builds and validates | `WITH_ROOTFS=0 scripts/make-pkg.sh`, `PkgTool.Core pkg_validate` | pass — 17,039,360 bytes, 28/28 checks OK, kernel inside the PKG matches the built one byte for byte |
 
-## Licence
+Not checked: any rootfs or initramfs build, installing a PKG on a console, and
+every hardware behaviour. The installer PKG is structurally valid but not
+bootable yet: `initramfs.cpio.gz` and `ps4linux-loader.bin` inside it are
+placeholders, marked as such in their own bytes.
 
-**GPL-3.0-or-later** for this project's own code - see `LICENSE`.
+## Design decisions worth knowing before you change anything
 
-That is not an arbitrary choice. The packages are built with the GPL-3.0
-OpenOrbis toolchain and LibOrbisPkg, so distributing the resulting binaries
-carries the GPL's source obligation either way; declaring it means the obligation
-can be met by pointing at this repository.
+- **The boot directory cannot be namespaced.** The loader's search path is fixed
+  upstream, so we own `/data/linux/boot` explicitly and back up what was there.
+  See `docs/LAYOUT.md`.
+- **Space is reserved from OrbisOS, not Linux.** Linux's UFS driver writes at
+  ~13 MB/s; OrbisOS reaches 60–150 MB/s. The reserve also must settle before
+  booting, or the console crashes (measured by the reference project: no picture
+  at 32 GB, panic at 64 GB).
+- **Never put firmware in the initramfs.** GPU/Wi-Fi firmware is built into the
+  kernel; `regulatory.db` there deadlocks the MediaTek driver and takes DHCP down
+  with it.
+- **Never write a payload autoload entry.** A boot loop is the result. The app
+  warns if it finds one, and `docs/RECOVERY.md` has the escape route.
 
-Third-party components keep their own licences and are not relicensed here. See
-`NOTICE.md` for the full list and for what is deliberately absent. ChromeOS Flex
-is **not** redistributable and is not included. Firmware blobs (AMD GPU, MediaTek
-MT7668, Marvell) come from `linux-firmware` under their own terms. This
-repository contains no Sony code and no Sony key.
+## Licensing
+
+Kernel GPL-2.0 (publish sources and patches), Mesa MIT (publish the patch),
+initramfs base GPL-3.0/BSD, OpenOrbis GPL-3.0. Debian packages keep their
+copyright files.
+
+**Do not bundle Sony-extracted blobs** — `liverpool_*.bin`, `gladius_*.bin`, or the
+EAP HDD key. The loader extracts those from OrbisOS memory at boot; that is what
+keeps the release distributable. ChromeOS Flex is not redistributable at all,
+which is one more reason this project ships Debian.

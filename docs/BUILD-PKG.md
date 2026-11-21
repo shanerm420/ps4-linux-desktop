@@ -68,9 +68,37 @@ PkgTool.Core pkg_extract  IV0000-...pkg /tmp/x
   and the debug RIF signature. Contents: `uroot/eboot.bin`,
   `uroot/sce_module/{libc,libSceFios2}.prx`, `uroot/sce_sys/about/right.sprx`,
   `uroot/sce_sys/keystone`.
-- The installer package also builds to completion with placeholder assets, which
-  proves its graph; it is **not shippable** until it carries a real `bzImage`,
-  `initramfs.cpio.gz`, `ps4linux-loader.bin` and (optionally) `rootfs.tar.zst`.
+- `IV0000-PS4LNX001_00-PS4LINUXDESKTOP0.pkg`, 17,039,360 bytes - built with
+  `WITH_ROOTFS=0 K=<kernel dir> scripts/make-pkg.sh`, `pkg_validate` 28/28 OK.
+  Contents: `uroot/eboot.bin`, `uroot/sce_module/{libc,libSceFios2}.prx`,
+  `uroot/sce_sys/{about/right.sprx,icon0.png,keystone}`,
+  `uroot/assets/ps4linux/{bzImage,initramfs.cpio.gz,ps4linux-loader.bin,build-id}`.
+  The `bzImage` extracted from the finished PKG hashes to
+  `a70b0935…b889`, the same bytes the kernel build produced, so the asset path
+  through `create-gp4` and `PkgTool` is proven end to end.
+  **It is still not bootable**: `initramfs.cpio.gz` in it holds only our overlay
+  files and `ps4linux-loader.bin` is a text placeholder. Both say so in their
+  own bytes. Replace them with the real artifacts before handing it to anyone.
+
+## Where the kernel comes from
+
+`make-pkg.sh` never builds a kernel. It reads `$K/bzImage` and `$K/.config` and
+refuses to package without them; `$K` defaults to `out/kbuild/out`, which is
+where `scripts/build-kernel.sh` puts its result. A prebuilt kernel works too:
+
+```sh
+K=/path/to/dir-with-bzImage-and-.config WITH_ROOTFS=0 scripts/make-pkg.sh
+```
+
+The staged assets under `pkg/installer/assets/` are gitignored - they are build
+output, and a 14 MB kernel does not belong in the repository. The kernel this
+package was built with is recorded by hash in the commit message and in
+`README.md`.
+
+The release gate checks `CONFIG_MAGIC_SYSRQ` and `CONFIG_DEBUG_FS` are off and
+fails the build if either is on. `CONFIG_NETCONSOLE` only produces a note: the
+upstream PS4 tree enables it by default and it stays inert unless the boot
+command line passes `netconsole=`.
 
 ## Status
 

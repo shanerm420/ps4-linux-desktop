@@ -10,7 +10,9 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 B=${B:-$HERE/../out}
 P=$HERE/../pkg/installer
 A=$P/assets/ps4linux
-K=${K:-$B/kbuild}/out
+# K is the directory holding bzImage and .config. Default: what build-kernel.sh
+# leaves behind. Point it at a kernel you already built instead of rebuilding.
+K=${K:-$B/kbuild/out}
 PAYLOAD=${PAYLOAD:-$B/ps4linux-loader.bin}
 # The rootfs tarball is only needed for the on-console populate path (an
 # initramfs with mke2fs). With a host-built image it is dead weight, so
@@ -34,9 +36,15 @@ if [ "$WITH_ROOTFS" = 1 ]; then
 	grep -q '^CONFIG_ZSTD_DECOMPRESS=y' "$K/.config" || { echo "kernel cannot read the rootfs" >&2; exit 1; }
 fi
 grep -q 'amdgpu/' "$K/.config" || { echo "kernel lacks built-in GPU firmware" >&2; exit 1; }
-for opt in CONFIG_NETCONSOLE CONFIG_MAGIC_SYSRQ CONFIG_DEBUG_FS; do
+# CONFIG_NETCONSOLE is deliberately not a blocker: the upstream PS4 tree turns it
+# on by default (scripts/build-kernel.sh says the same), and it stays inert unless
+# the boot command line passes netconsole=. Magic SysRq and debugfs are genuine
+# debugging holes and are off in the shipped config, so those still stop a build.
+for opt in CONFIG_MAGIC_SYSRQ CONFIG_DEBUG_FS; do
 	grep -q "^$opt=y" "$K/.config" && { echo "release kernel has debug option $opt" >&2; exit 1; }
 done
+grep -q '^CONFIG_NETCONSOLE=y' "$K/.config" \
+	&& echo "NOTE: CONFIG_NETCONSOLE=y (upstream default, inactive unless netconsole= is passed)" >&2
 zcat "$B/initramfs.cpio.gz" | cpio -t --quiet | grep -qx 'functions/55-ps4linux.sh' \
 	|| { echo "initramfs lacks our boot function" >&2; exit 1; }
 
