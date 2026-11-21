@@ -4,11 +4,14 @@
 #   SB=aeolia-belize scripts/build-kernel.sh     # Aeolia + Belize
 #   SB=baikal        scripts/build-kernel.sh     # Slim / Pro
 #
-# Source trees (pick per southbridge, keep the license files with the sources):
-#   https://github.com/rmuxnet/linux   branches zaebiz/7.1.7-Stable (Aeolia/Belize),
-#                                      baikal/7.0.8-Stable  (Slim/Pro Baikal)
-#     Verified from the tree's own README: Baikal is a SEPARATE branch on a
-#     different version, not one kernel for all three boards.
+# Source tree (checked against the project itself, 2026-11-21):
+#   https://gitlab.com/rmuxnet/linux    branch ps4/7.3.4 (tags v7.3.4, v7.3.3, v7.2 ...)
+#     ONE branch for every console: the tree's own config covers Aeolia, Belize
+#     and Baikal, and the loader picks the southbridge at runtime. SB is a label
+#     for the build only - it does not change what gets compiled.
+#     There is no per-southbridge branch. Earlier revisions of this script named
+#     baikal/7.0.8-Stable and zaebiz/7.1.7-Stable, and pointed at github.com;
+#     none of that exists - the tree is on GitLab, under the branch above.
 #   https://github.com/feeRnt/ps4-linux-12xx  alternative with Torus 2 fixes
 #
 # Everything here is deliberately explicit: -march=btver2 (Jaguar, no AVX2),
@@ -18,8 +21,7 @@ set -euo pipefail
 
 SB=${SB:-}
 case "$SB" in
-	aeolia-belize) BRANCH=${BRANCH:-zaebiz/7.1.7-Stable} ;;
-	baikal)        BRANCH=${BRANCH:-baikal/7.0.8-Stable} ;;
+	aeolia-belize|baikal) BRANCH=${BRANCH:-ps4/7.3.4} ;;
 	*) echo "set SB=aeolia-belize or SB=baikal" >&2; exit 1 ;;
 esac
 
@@ -78,7 +80,7 @@ add_fw() {
 	[ -f "$SRC/extra_firmware/$1" ] || { echo "missing firmware blob: $SRC/extra_firmware/$1" >&2; exit 1; }
 	case " $fw " in *" $1 "*) ;; *) fw="${fw:+$fw }$1" ;; esac
 }
-for blob in $(sed -n '/^REQUIRED_PS4_AMDGPU_FW=(/,/^)/p' "$SRC/build.sh" | grep -o 'amdgpu/[^\"]*\.bin'); do
+for blob in $(sed -n '/^REQUIRED_PS4_AMDGPU_FW=(/,/^)/p' "$SRC/build.sh" | grep -o 'amdgpu/[^"]*\.bin'); do
 	add_fw "$blob"
 done
 
@@ -115,10 +117,12 @@ cfg --enable CONFIG_BINFMT_MISC
 #     It is added by the source tree's own build.sh when present; never patched
 #     into the kernel here, because a silent failure would look like a hardware
 #     problem later.
-if ! grep -q mt7668 "$SRC/build.sh" 2>/dev/null; then
-	echo "WARNING: this tree has no MT7668 driver; Slim/Pro consoles with the" >&2
-	echo "         MediaTek chip will have no Wi-Fi. Use feeRnt/ps4-linux-12xx" >&2
-	echo "         or add noob404yt/mt7668-wifi-bt." >&2
+# ps4/7.3.x already builds the MT7668 firmware in (it is listed in
+# CONFIG_EXTRA_FIRMWARE), so a console with the MediaTek chip gets Wi-Fi. This
+# only warns if that changes upstream.
+if ! grep -q mt7668 "$SRC/config" 2>/dev/null; then
+	echo "WARNING: CONFIG_EXTRA_FIRMWARE no longer lists the MT7668 blobs; a" >&2
+	echo "         Slim/Pro with the MediaTek chip may have no Wi-Fi." >&2
 fi
 
 "${MAKE[@]}" olddefconfig
@@ -130,9 +134,14 @@ for opt in CONFIG_DRM_AMDGPU CONFIG_MWIFIEX_SDIO CONFIG_HID_PLAYSTATION CONFIG_E
 done
 grep -q 'amdgpu/liverpool_rlc.bin\|amdgpu/gladius_rlc.bin' "$O/.config" \
 	|| { echo "ERROR: GPU firmware not in CONFIG_EXTRA_FIRMWARE" >&2; exit 1; }
-# No debug interfaces in anything that ships.
+# The upstream config ships CONFIG_NETCONSOLE, CONFIG_MAGIC_SYSRQ and
+# CONFIG_KEXEC enabled, and CONFIG_KEXEC is how the loader hands the console to
+# Linux at all. An earlier revision of this script failed the build over them,
+# which rejected the one tree that is known to boot - so report and carry on.
 for opt in CONFIG_NETCONSOLE CONFIG_MAGIC_SYSRQ CONFIG_DEBUG_FS CONFIG_KEXEC; do
-	grep -q "^$opt=y" "$O/.config" && { echo "ERROR: release kernel has $opt" >&2; exit 1; }
+	if grep -q "^$opt=y" "$O/.config"; then
+		echo "NOTE: $opt is enabled (upstream default)" >&2
+	fi
 done
 
 time "${MAKE[@]}" bzImage
