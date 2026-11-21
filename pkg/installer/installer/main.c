@@ -810,8 +810,12 @@ int main(void)
 			quit();
 		}
 		total += fd_size(src_fd[i]);
-		if (!strcmp(boot_files[i], "ps4linux-loader.bin"))
+		if (!strcmp(boot_files[i], "ps4linux-loader.bin")) {
 			loader_fd = src_fd[i];
+			// copied twice: /data/linux/boot (what the loader reads) and
+			// /data/payloads (what GoldHEN's payload menu lists)
+			total += fd_size(src_fd[i]);
+		}
 	}
 	snprintf(path, sizeof(path), "%s/chromeos.img.state-start", SRC);
 	if (read_small(path, buf, sizeof(buf)) == 0)
@@ -901,7 +905,22 @@ int main(void)
 			quit();
 		}
 	}
+
+	// GoldHEN's payload menu lists the files in /data/payloads, and starting the
+	// loader from that menu is the way in when BinLoader (port 9090) is switched
+	// off. The reference project keeps a copy there for the same reason. Not
+	// fatal if it fails: the BinLoader path above may still work.
+	int payload_copy_failed = 0;
+	if (copy_file(loader_fd, "/data/payloads/ps4linux-loader.bin", &done, total,
+	              "ps4linux-loader.bin for GoldHEN") != 0)
+		payload_copy_failed = 1;
 	progress_close();
+	if (payload_copy_failed)
+		dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
+		       "The loader was not copied into /data/payloads, so GoldHEN's payload "
+		       "menu will not list it.\n\nStarting Linux from this app still works "
+		       "if BinLoader is enabled. Otherwise copy ps4linux-loader.bin from "
+		       "/data/linux/boot into /data/payloads over FTP.");
 
 	if (gib) {
 		uint64_t want = img_bytes(start, gib);
