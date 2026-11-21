@@ -1,7 +1,7 @@
 # PS4 Linux - PKG builds (OpenOrbis).
 #
 # Two packages, one source tree:
-#   make APP=install   -> PS4LNX001  PS4 Linux: installs, starts, repairs
+#   make APP=install   -> PS4LNX001  PS4 XFCE Linux: installs, starts, repairs
 #                                  (installer/main.c)
 #   make APP=remove    -> PS4LNX002  the ChromeOS remover (installer/remove.c)
 #
@@ -30,7 +30,7 @@ CONTENT_ID  := IV0000-PS4LNX002_00-PS4LINUXREMOVER0
 CFILES      := installer/remove.c
 ASSETS      :=
 else
-TITLE       := PS4 Linux
+TITLE       := PS4 XFCE Linux
 VERSION     := 0.1
 TITLE_ID    := PS4LNX001
 CONTENT_ID  := IV0000-PS4LNX001_00-PS4LINUXDESKTOP0
