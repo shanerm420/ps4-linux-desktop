@@ -63,13 +63,15 @@ These are host-side checks, not console tests:
 | `tools/hwprofile.c` builds and runs | pass; correctly reports "not a PS4" on a normal machine |
 | `pkg/installer/installer/main.c` type-checks against the real Orbis headers | pass (`cc -fsyntax-only`, warnings only from SDK headers) |
 | `main.c` compiles to an `eboot.bin` | pass — 122,432 bytes, clang 18 + `ld.lld` (OpenOrbis release v0.5.4) |
-| PKG builds | pass — app 278,659,072 bytes, remover 6,619,136 bytes, `pkg_validate` 28/28 on both |
+| PKG builds | pass — app 290,783,232 bytes, remover 6,619,136 bytes, `pkg_validate` 28/28 on both |
+| Package title matches the app | pass — `PS4 XFCE Linux` read back from the packaged `param.sfo`; no `Remove ChromeOS` or `PS4LNX002` strings in the installer package |
 | PS4-patched Mesa builds (`scripts/build-mesa.sh`) | pass — Mesa 25.0.7, 1,470 targets, 0 failures, 42 MB staged, `LIVERPOOL`/`GLADIUS` in the driver, newest glibc symbol 2.38 |
 | Mesa really is in the image | pass — unpacked the packaged `rootfs.tar.zst`, 40 files under `/opt/ps4-mesa`, plus the glvnd symlinks |
 | PKG installs on a console | **not done** — needs a PS4 |
 | Kernel builds | pass — `7.3.4-PS4Linux-baikal+`, 14,251,008 bytes, sha256 `a70b0935…b889` |
 | Kernel inside the installer PKG is the built one | pass — extracted `bzImage` hashes identically |
-| Rootfs and initramfs build | pass — Debian 13 + XFCE, 20,776 entries, 231,872,740-byte `rootfs.tar.zst` |
+| Rootfs and initramfs build | pass — Debian 13 + XFCE, 22,095 entries, 244,055,004-byte `rootfs.tar.zst`; 419 packages, `/bin/sh` and coreutils present, 419 `dpkg` status entries |
+| Rootfs can actually run something | pass — `/bin/sh`, `bash`, `ls`, `cat`, `cp`, `rm`, `mount`, `apt`, `dpkg`, `/sbin/init`, `ldconfig` all present and x86-64 |
 | radeonsi binds the PS4 GPU | **not done** — needs a PS4 |
 
 ## Reporting a result

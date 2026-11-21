@@ -3,8 +3,8 @@
 A full Linux distribution for jailbroken PS4 consoles, installed from a PS4 PKG.
 Replaces the ChromeOS-based installer with Debian + XFCE.
 
-**This tree is a working skeleton, not a release.** Read the status table before
-assuming anything works.
+**This tree is the source of the v1.0.0 build. Read the status table before
+assuming anything works.**
 
 **Start here:** [`docs/USAGE.md`](docs/USAGE.md) is the full guide - what you need,
 installing, the menu, autoload, recovery, updating and removing. The kernel has its
@@ -17,14 +17,14 @@ own project: [ps4-linux-kernel](https://github.com/shanerm420/ps4-linux-kernel)
 |---|---|
 | App source (`pkg/installer/`) | Written; type-checks against the real Orbis headers |
 | App compiled to `eboot.bin` | **Built** — 122,432 bytes with clang 18 + `ld.lld` against `link.x` |
-| PKG produced | **Built and validated** — `pkg_validate` 28/28, 278,659,072 bytes; carries the real kernel, a real initramfs, the Debian/XFCE rootfs and the PS4-patched Mesa. The loader payload is still a placeholder |
+| PKG produced | **Built and validated** — `pkg_validate` 28/28, 290,783,232 bytes; carries the real kernel, a real initramfs, the Debian/XFCE rootfs and the PS4-patched Mesa. The loader payload is still a placeholder |
 | PKG installed on a console | **Not done** |
 | ChromeOS detection / removal rules | **Implemented and tested** (24 assertions, synthetic tree) |
 | Hardware detection tool | **Built and run** on a normal Linux host |
 | Image validator (`scripts/check-image.sh`) | **Run** against real images: passes a good one, rejects an `orphan_file` one |
 | Kernel build (`scripts/build-kernel.sh`) | **Run** — produced a 14,251,008-byte `bzImage`, release `7.3.4-PS4Linux-baikal+` |
 | Initramfs built (`scripts/build-initramfs.sh`) | **Run** — 29,548,535 bytes from the feeRnt base, with the boot handoff spliced into its init and the autoload policy step |
-| Debian rootfs built (`scripts/build-rootfs-rootless.sh`) | **Run** — Debian 13 + XFCE, 405 packages, 231,872,740-byte `rootfs.tar.zst` |
+| Debian rootfs built (`scripts/build-rootfs-rootless.sh`) | **Run** — Debian 13 + XFCE, 419 packages, 244,055,004-byte `rootfs.tar.zst` |
 | PS4-patched Mesa (`scripts/build-mesa.sh`) | **Built** — Mesa 25.0.7 (the version Debian 13 ships), 1,470 targets, 0 failures, 42 MB; radeonsi + RADV, `LIVERPOOL`/`GLADIUS` in the driver. Inside the PKG at `/opt/ps4-mesa` |
 | Debian rootfs booted on a PS4 | **Not done** |
 | Anything at all tested on PS4 hardware | **Nothing** |
@@ -255,15 +255,15 @@ package still builds, it just has no GPU acceleration.
 | Mesa builds | `bash scripts/build-mesa.sh` | pass — 25.0.7, 1,470 targets, 0 failures, 42 MB, `LIVERPOOL`/`GLADIUS` present, newest glibc symbol 2.38 |
 | Mesa is in the packaged image | unpack `rootfs.tar.zst` from the PKG | pass — 40 files under `/opt/ps4-mesa` plus the glvnd symlinks |
 | App compiles | `make APP=install` | pass — `eboot.bin`, 122,432 bytes |
-| PKG builds and validates | `WITH_ROOTFS=1 bash scripts/make-pkg.sh`, `PkgTool.Core pkg_validate` | pass — 278,659,072 bytes, 28/28 checks OK, all four assets byte-identical to their sources |
-| Package title | read `TITLE` back out of the packaged `param.sfo` | pass — `PS4 XFCE Linux` |
+| PKG builds and validates | `WITH_ROOTFS=1 bash scripts/make-pkg.sh`, `PkgTool.Core pkg_validate` | pass — 290,783,232 bytes, 28/28 checks OK, all four assets byte-identical to their sources |
+| Package title | read `TITLE` back out of the packaged `param.sfo` | pass — `PS4 XFCE Linux`, and no remover strings in the package |
 | Initramfs handoff is really in the init | unpack the packaged `initramfs.cpio.gz`, read `init` | pass — the block after the base's `mount ... /ps4hdd` calls `ps4linux_boot` |
 | Autoload policy is in the packaged initramfs | unpack, read `functions/55-ps4linux.sh` | pass — `ps4l_autoload_policy` present, `bin/zstd` still there |
-| Rootfs has a desktop and a login | unpack `rootfs.tar.zst` | pass — `systemd`, `xfce4-session`, `lightdm` (linked as `display-manager.service`), `Xorg`, user `ps4` |
+| Rootfs has a desktop, a login and a shell | unpack `rootfs.tar.zst` | pass — `/bin/sh`, coreutils, `apt`, `dpkg` with 419 status entries, `systemd`, `xfce4-session`, `lightdm` (linked as `display-manager.service`), `Xorg`, user `ps4` |
 
 Not checked: installing a PKG on a console, whether radeonsi binds the GPU, and
-every hardware behaviour. The package now carries a real kernel, a real initramfs,
-a real Debian/XFCE rootfs and the patched Mesa; the one placeholder left is
+every hardware behaviour. The package carries a real kernel, a real initramfs, a
+real Debian/XFCE rootfs and the patched Mesa; the one placeholder left is
 `ps4linux-loader.bin`, and until that is replaced the package cannot boot.
 
 ## Design decisions worth knowing before you change anything
@@ -302,6 +302,13 @@ a real Debian/XFCE rootfs and the patched Mesa; the one placeholder left is
   the `remove` policy, and `docs/RECOVERY.md` has the escape route. Autoload is
   still available deliberately — it is GoldHEN's setting, not ours; see
   "Using the console as a computer only".
+- **The image build refuses to pack a tree it cannot boot.** It checks for the
+  shell, coreutils, `apt`, `dpkg` and `init` after unpacking and exits if any is
+  missing, because a tarball that looks complete is exactly how an unbootable
+  image shipped once.
+- **`param.sfo` is rebuilt on every run.** It carries TITLE and TITLE_ID, which
+  differ between the installer and the remover; letting make reuse it put the
+  remover's title inside the installer package.
 
 ## Licensing
 
