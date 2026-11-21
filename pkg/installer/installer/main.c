@@ -813,10 +813,18 @@ int main(void)
 
 	int src_fd[N_BOOT_FILES], loader_fd = -1;
 	uint64_t total = 0;
+	int no_rootfs = 0;
 	for (size_t i = 0; i < N_BOOT_FILES; i++) {
 		snprintf(path, sizeof(path), "%s/%s", SRC, boot_files[i]);
 		src_fd[i] = open(path, O_RDONLY);
 		if (src_fd[i] < 0) {
+			// rootfs.tar.zst is optional: WITH_ROOTFS=0 leaves it out, and the
+			// image is then built on a host instead (docs/BUILD-PKG.md).
+			// Everything else is required.
+			if (!strcmp(boot_files[i], "rootfs.tar.zst")) {
+				no_rootfs = 1;
+				continue;
+			}
 			dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
 			       "The package is incomplete: %s is missing.", boot_files[i]);
 			quit();
@@ -909,6 +917,7 @@ int main(void)
 	if (progress_open("Copying PS4 Linux ...") < 0) quit();
 	uint64_t done = 0;
 	for (size_t i = 0; i < N_BOOT_FILES; i++) {
+		if (src_fd[i] < 0) continue;	// optional asset that is not in this build
 		snprintf(path, sizeof(path), BOOT_DIR "/%s", boot_files[i]);
 		if (copy_file(src_fd[i], path, &done, total, boot_files[i]) != 0) {
 			progress_close();
@@ -933,6 +942,16 @@ int main(void)
 		       "menu will not list it.\n\nStarting Linux from this app still works "
 		       "if BinLoader is enabled. Otherwise copy ps4linux-loader.bin from "
 		       "/data/linux/boot into /data/payloads over FTP.");
+
+	if (no_rootfs)
+		dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
+		       "This package carries no root filesystem, so the image it reserves "
+		       "stays empty.\n\n"
+		       "Before starting Linux, copy a prebuilt ps4linux.img (made with "
+		       "scripts/build-rootimg.sh) to /data/linux/boot, or use a package "
+		       "built with a rootfs.tar.zst.\n\n"
+		       "Booting with an empty image stops at a rescue shell; nothing on "
+		       "the console is modified.");
 
 	if (gib) {
 		uint64_t want = img_bytes(start, gib);
