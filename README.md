@@ -6,6 +6,11 @@ Replaces the ChromeOS-based installer with Debian + XFCE.
 **This tree is a working skeleton, not a release.** Read the status table before
 assuming anything works.
 
+**Start here:** [`docs/USAGE.md`](docs/USAGE.md) is the full guide - what you need,
+installing, the menu, autoload, recovery, updating and removing. The kernel has its
+own project: [ps4-linux-kernel](https://github.com/shanerm420/ps4-linux-kernel)
+(provenance, `build.sh`, checksums).
+
 ## Status
 
 | Area | State |
@@ -152,7 +157,7 @@ scripts/                build-kernel.sh, build-initramfs.sh, build-rootfs.sh,
 initramfs/              our boot/install function + the early recovery hook
 rootfs/                 files installed into the Debian image (apt pins, units, ICD json)
 tools/                  hwprofile.c (hardware truth), chromeos-scan.c (removal rules + test)
-docs/                   ARCHITECTURE, LAYOUT, RECOVERY, TEST-MATRIX
+docs/                   ARCHITECTURE, LAYOUT, RECOVERY, USAGE, TEST-MATRIX
 ```
 
 ## Fastest path to a result on hardware
