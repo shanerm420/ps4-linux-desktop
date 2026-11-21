@@ -17,19 +17,20 @@ own project: [ps4-linux-kernel](https://github.com/shanerm420/ps4-linux-kernel)
 |---|---|
 | App source (`pkg/installer/`) | Written; type-checks against the real Orbis headers |
 | App compiled to `eboot.bin` | **Built** — 122,432 bytes with clang 18 + `ld.lld` against `link.x` |
-| PKG produced | **Built and validated** — `pkg_validate` 28/28; carries the real kernel, a real initramfs and the Debian/XFCE rootfs. The loader payload is still a placeholder |
+| PKG produced | **Built and validated** — `pkg_validate` 28/28, 278,659,072 bytes; carries the real kernel, a real initramfs, the Debian/XFCE rootfs and the PS4-patched Mesa. The loader payload is still a placeholder |
 | PKG installed on a console | **Not done** |
 | ChromeOS detection / removal rules | **Implemented and tested** (24 assertions, synthetic tree) |
 | Hardware detection tool | **Built and run** on a normal Linux host |
 | Image validator (`scripts/check-image.sh`) | **Run** against real images: passes a good one, rejects an `orphan_file` one |
 | Kernel build (`scripts/build-kernel.sh`) | **Run** — produced a 14,251,008-byte `bzImage`, release `7.3.4-PS4Linux-baikal+` |
 | Initramfs built (`scripts/build-initramfs.sh`) | **Run** — 29,548,535 bytes from the feeRnt base, with the boot handoff spliced into its init and the autoload policy step |
-| Debian rootfs built (`scripts/build-rootfs-rootless.sh`) | **Run** — Debian 13 + XFCE, 405 packages, 221,708,644-byte `rootfs.tar.zst` |
+| Debian rootfs built (`scripts/build-rootfs-rootless.sh`) | **Run** — Debian 13 + XFCE, 405 packages, 231,872,740-byte `rootfs.tar.zst` |
+| PS4-patched Mesa (`scripts/build-mesa.sh`) | **Built** — Mesa 25.0.7 (the version Debian 13 ships), 1,470 targets, 0 failures, 42 MB; radeonsi + RADV, `LIVERPOOL`/`GLADIUS` in the driver. Inside the PKG at `/opt/ps4-mesa` |
 | Debian rootfs booted on a PS4 | **Not done** |
 | Anything at all tested on PS4 hardware | **Nothing** |
 
-`docs/TEST-MATRIX.md` lists every hardware test with its real status. Every row
-is `untested`, because no console was available.
+`docs/TEST-MATRIX.md` lists every hardware test with its real status. Every console
+row is `untested`, because no console was available.
 
 ## The two packages
 
@@ -79,6 +80,30 @@ loop:
 
 It is stored in `/data/linux/boot/autoload-policy` and read by the initramfs before
 it switches to the root filesystem.
+
+## Graphics: why Mesa is built here
+
+Stock Mesa does not bind the PS4 GPU. Liverpool (original/Slim) and Gladius (Pro)
+are GCN parts whose device ids are not in Mesa's chip tables, so radeonsi refuses
+the card and the desktop comes up on llvmpipe - software rendering, unusable for
+anything 3D.
+
+`scripts/build-mesa.sh` fixes that the same way fail0verflow did in 2016: a small
+patch (`patches/ps4-mesa.patch`) that adds the two chips as Bonaire-class GFX7
+parts, with their raster configuration. It builds Mesa 25.0.7 - the version
+Debian 13 ships, so the image's libglvnd, libLLVM and libdrm match exactly - with
+radeonsi and RADV, without root and without Docker, by unpacking Debian 13's own
+build dependencies into a sysroot and compiling against that.
+
+The result goes to `/opt/ps4-mesa`, not into the distro's paths: an `apt upgrade`
+cannot replace it, and the vendor files (`libGLX_ps4-mesa.so.0`,
+`10-ps4-mesa.json`) point libglvnd at it. `etc/environment` selects it for GLX and
+Vulkan; EGL tries it first and keeps the distro build as a fallback, so a GPU that
+does not come up gives a slow desktop rather than a black screen.
+
+**What is proven:** it builds, it links against the right glibc, and the chip names
+are in the driver. **What is not:** that radeonsi binds on a real console. That is
+one row in the test matrix, and it needs a PS4.
 
 ## Reference console
 
@@ -153,7 +178,8 @@ can see exactly what is armed.
 ```
 pkg/installer/          the PS4 app (OpenOrbis C) + Makefile
 scripts/                build-kernel.sh, build-initramfs.sh, build-rootfs.sh,
-                        build-rootfs-rootless.sh, make-pkg.sh
+                        build-rootfs-rootless.sh, build-mesa.sh, make-pkg.sh
+patches/                ps4-mesa.patch - the PS4 device-id patch for Mesa
 initramfs/              our boot/install function + the early recovery hook
 rootfs/                 files installed into the Debian image (apt pins, units, ICD json)
 tools/                  hwprofile.c (hardware truth), chromeos-scan.c (removal rules + test)
@@ -174,13 +200,13 @@ sudo PROFILE=desktop bash scripts/make-test-usb.sh   # XFCE
 ```
 
 This deliberately uses the stock kernel and stock initramfs, so a failure is
-attributable. Our app, the PKG, the recovery flag and the `/opt` Mesa come in
-later stages.
+attributable. Our app, the PKG and the recovery flag come in later stages.
 
 ## Build order
 
 Prerequisites: x86-64 Linux host, ~30 GB free, `debootstrap`, `zstd`,
-`squashfs-tools`, `sgdisk`, Docker (Mesa), and a **built** OpenOrbis toolchain.
+`squashfs-tools`, `sgdisk`, and a **built** OpenOrbis toolchain. No Docker, and no
+root: Mesa and the rootfs both build unprivileged.
 
 ```sh
 # The scripts are invoked through bash because the executable bit is not set in
@@ -195,9 +221,10 @@ export OO_PS4_TOOLCHAIN=$PWD/OpenOrbis/PS4Toolchain
 SB=baikal        bash scripts/build-kernel.sh          # -> out/kbuild/out/bzImage
 # already have a bzImage + .config? skip the build and point K at that directory:
 #   K=/path/to/kernel  bash scripts/make-pkg.sh
+                 bash scripts/build-mesa.sh            # -> out/ps4-mesa (15-40 min)
 PS4_MESA=...     bash scripts/build-rootfs.sh
 # or, on a host where you cannot be root:
-#                ZSTD=/path/to/static/zstd PROOT=/path/to/proot \
+#   PS4_MESA=$PWD/out/ps4-mesa ZSTD=/path/to/static/zstd PROOT=/path/to/proot \
 #                  bash scripts/build-rootfs-rootless.sh
                  bash scripts/build-initramfs.sh
                  bash scripts/make-pkg.sh
@@ -206,6 +233,9 @@ PS4_MESA=...     bash scripts/build-rootfs.sh
 The git repository of the toolchain is **not** enough: `bin/linux/` is empty
 until `build.sh` runs, and `PkgTool.Core` (Sony's packaging tool) is only present
 in a built toolchain. `make-pkg.sh` fails with a clear message if it is missing.
+
+`make-pkg.sh` warns and carries on if `PS4_MESA` was not used for the rootfs: the
+package still builds, it just has no GPU acceleration.
 
 ## What has actually been checked
 
@@ -217,17 +247,19 @@ in a built toolchain. `make-pkg.sh` fails with a clear message if it is missing.
 | Shell scripts parse | `bash -n scripts/*.sh`, `sh -n initramfs/functions/55-ps4linux.sh` | pass |
 | Dummy kernel package builds | `dpkg-deb --build` | pass |
 | Kernel builds | `SB=baikal bash scripts/build-kernel.sh` | pass — `bzImage` 14,251,008 bytes, sha256 `a70b0935…b889`, `HdrS` at 0x202 |
+| Mesa builds | `bash scripts/build-mesa.sh` | pass — 25.0.7, 1,470 targets, 0 failures, 42 MB, `LIVERPOOL`/`GLADIUS` present, newest glibc symbol 2.38 |
+| Mesa is in the packaged image | unpack `rootfs.tar.zst` from the PKG | pass — 40 files under `/opt/ps4-mesa` plus the glvnd symlinks |
 | App compiles | `make APP=install` | pass — `eboot.bin`, 122,432 bytes |
-| PKG builds and validates | `WITH_ROOTFS=1 bash scripts/make-pkg.sh`, `PkgTool.Core pkg_validate` | pass — 268,500,992 bytes, 28/28 checks OK, all four assets byte-identical to their sources |
+| PKG builds and validates | `WITH_ROOTFS=1 bash scripts/make-pkg.sh`, `PkgTool.Core pkg_validate` | pass — 278,659,072 bytes, 28/28 checks OK, all four assets byte-identical to their sources |
 | Package title | read `TITLE` back out of the packaged `param.sfo` | pass — `PS4 Linux` |
 | Initramfs handoff is really in the init | unpack the packaged `initramfs.cpio.gz`, read `init` | pass — the block after the base's `mount ... /ps4hdd` calls `ps4linux_boot` |
 | Autoload policy is in the packaged initramfs | unpack, read `functions/55-ps4linux.sh` | pass — `ps4l_autoload_policy` present, `bin/zstd` still there |
 | Rootfs has a desktop and a login | unpack `rootfs.tar.zst` | pass — `systemd`, `xfce4-session`, `lightdm` (linked as `display-manager.service`), `Xorg`, user `ps4` |
 
-Not checked: installing a PKG on a console, and every hardware behaviour. The
-package now carries a real kernel, a real initramfs and a real Debian/XFCE
-rootfs; the one placeholder left is `ps4linux-loader.bin`, and until that is
-replaced the package cannot boot.
+Not checked: installing a PKG on a console, whether radeonsi binds the GPU, and
+every hardware behaviour. The package now carries a real kernel, a real initramfs,
+a real Debian/XFCE rootfs and the patched Mesa; the one placeholder left is
+`ps4linux-loader.bin`, and until that is replaced the package cannot boot.
 
 ## Design decisions worth knowing before you change anything
 
@@ -238,6 +270,10 @@ replaced the package cannot boot.
   (installing needs the RAM more than the GPU does) and offers 1024/2048/3072/4096
   from its Graphics memory menu afterwards. The PS4 has a single 8 GB pool: every
   megabyte given to the GPU is taken from system memory.
+- **Mesa lives in `/opt`, not in the distro paths.** The PS4 support is a
+  device-id and chip-init patch. If it replaced `/usr/lib/.../libGLX_mesa.so.0`,
+  the next Debian Mesa update would silently take the GPU away. In `/opt` it
+  survives upgrades, and `libglvnd` is pointed at it by name.
 - **The loader payload is adopted, not shipped.** It is somebody else's binary,
   rebuilt per firmware, so the package carries a placeholder. Put a current
   payload (`ps4-linux-1gb.bin`, or the `.elf`) in the root of a USB stick or in
