@@ -87,10 +87,15 @@ sce_module/%.prx:
 	@mkdir -p sce_module
 	cp "$(MODSRC)/$*.prx" $@
 
-# Package artwork. artwork/icon0.png is this project's own tile - 512x512 PNG,
-# the size the home screen loads - and is what ships. The OpenOrbis sample is only
-# a fallback for a tree where the project file is missing.
+# Package artwork. Both tiles are this project's own, 512x512 PNG - the size the
+# home screen loads. The installer gets the console mark; the remover gets the same
+# mark dimmed and struck through, so the two are told apart at a glance on the XMB.
+# The OpenOrbis sample is only a fallback for a tree where the file is missing.
+ifeq ($(APP),remove)
+ARTWORK     := artwork/icon0-remove.png
+else
 ARTWORK     := artwork/icon0.png
+endif
 SAMPLES     := $(TOOLCHAIN)/samples/hello_world/sce_sys
 
 sce_sys/about/right.sprx:
