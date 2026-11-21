@@ -942,9 +942,8 @@ int main(void)
 		snprintf(path, sizeof(path), "%s/%s", SRC, boot_files[i]);
 		src_fd[i] = open(path, O_RDONLY);
 		if (src_fd[i] < 0) {
-			// rootfs.tar.zst is optional: WITH_ROOTFS=0 leaves it out, and the
-			// image is then built on a host instead (docs/BUILD-PKG.md).
-			// Everything else is required.
+			//<｜begin▁of▁sentence｜>In a package built with WITH_ROOTFS=1 this never happens; with
+			// WITH_ROOTFS=0 the image is built on a host instead (docs/BUILD-PKG.md).
 			if (!strcmp(boot_files[i], "rootfs.tar.zst")) {
 				no_rootfs = 1;
 				continue;
@@ -1020,6 +1019,24 @@ int main(void)
 			       "the app sets that.\n\n"
 			       "Nothing was changed.");
 			quit();
+		}
+		// Put the copy next to the kernel back if it went missing. Breaking a boot
+		// loop usually means deleting the payload, which leaves the install with no
+		// loader - and that is why the recovery doc can say "just launch the app
+		// again": this is the code that makes it true.
+		if (strcmp(LOADER_FOUND, LOADER) != 0) {
+			int src = open(LOADER_FOUND, O_RDONLY);
+			if (src >= 0) {
+				uint64_t d = 0, sz = fd_size(src);
+				if (progress_open("Putting the loader back ...") >= 0) {
+					if (copy_file(src, LOADER, &d, sz, "loader payload") == 0)
+						klog("loader payload restored at %s", LOADER);
+					else
+						klog("could not restore %s", LOADER);
+					progress_close();
+				}
+				close(src);
+			}
 		}
 		int lf = open(LOADER_FOUND, O_RDONLY);
 		goldhen_unjailbreak();
