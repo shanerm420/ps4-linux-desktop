@@ -2,6 +2,18 @@
 #
 # Prefer the PS4-patched Mesa in /opt over the distro's copy. Both exist; only
 # this makes the patched one win. If a future distro update ships a Mesa that
-# binds the PS4 GPU on its own, delete these two lines and the /opt copy.
-VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/ps4-mesa.json
+# binds the PS4 GPU on its own, delete these lines and the /opt copy.
+#
+# GLX: libglvnd loads /usr/lib/x86_64-linux-gnu/libGLX_ps4-mesa.so.0, which is a
+# symlink into /opt, so this name selects the patched build.
 __GLX_VENDOR_LIBRARY_NAME=ps4-mesa
+#
+# Vulkan: the ICD points straight at /opt (see the json). VK_ICD_FILENAMES is the
+# old name and VK_DRIVER_FILES the current one; set both, they cost nothing.
+VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/ps4-mesa.json
+VK_DRIVER_FILES=/usr/share/vulkan/icd.d/ps4-mesa.json
+#
+# EGL is left to glvnd's vendor list on purpose: 10-ps4-mesa.json sorts before
+# the distro's 50_mesa.json, so the patched driver is tried first, and the
+# distro build (which has llvmpipe) stays as a fallback instead of a black
+# screen when the GPU does not come up.
