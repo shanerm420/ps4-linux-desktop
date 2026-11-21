@@ -944,6 +944,15 @@ int main(void)
 	}
 	write_small(STATE_DIR "/choice.txt", buf);
 
+	// The same decision again, in the layout the patched PS4 Linux initramfs
+	// reads (checked against the ChromeOS original it was adapted from):
+	// key=value lines under /data/linux/boot, first match wins, values trimmed
+	// of whitespace and CR, unknown keys ignored, and the choice file deleted
+	// once it has been acted on. Written in addition to our own files, never
+	// instead of them, so either initramfs works unchanged.
+	write_small(BOOT_DIR "/ps4linux-install-choice", buf);
+	write_small(BOOT_DIR "/ps4linux-target", buf);
+
 	char manifest[512];
 	snprintf(manifest, sizeof(manifest),
 	         "target=%s\nstate_gib=%llu\nstart=%llu\ninstalled=1\n",
