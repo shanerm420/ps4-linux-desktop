@@ -9,8 +9,14 @@
 //   5. how much space (only sizes that actually fit)
 //   6. if a ChromeOS-for-PS4 install is found: say so and install beside it
 //      (removing it is a separate package, PS4LNX002 - installer/remove.c)
-//   7. copy files, reserve space from OrbisOS, wait for the drive to settle
+//   7. copy files, write vram.txt (1 GB for the first start), reserve space from
+//      OrbisOS, wait for the drive to settle
 //   8. "Start Linux now?" - explicit confirmation, Cancel returns to the PS4 menu
+//
+// Once Linux is installed, launching the app again offers the graphics memory
+// size as well. The loader reads that number from vram.txt next to the bzImage
+// and ignores the payload's own size when the file is there, so changing it is a
+// menu choice here and never a file edit on the console.
 //
 // Hard rules encoded here:
 //   * this app never deletes a file that existed before it ran. Its unlink()
@@ -68,6 +74,16 @@ static const char *boot_files[] = {
 	"bzImage", "initramfs.cpio.gz", "ps4linux-loader.bin", "rootfs.tar.zst",
 };
 #define N_BOOT_FILES (sizeof(boot_files) / sizeof(boot_files[0]))
+
+// Graphics memory. The PS4 has one 8 GB pool shared by the CPU and the GPU: the
+// payload hands N MB to the graphics chip as VRAM and the kernel gets the rest.
+// The loader takes the number from vram.txt (plain text, in MB) sitting next to
+// the bzImage, and a vram.txt beats whichever payload was launched - which is
+// what makes this a setting instead of a choice of four different payload files.
+#define VRAM_FILE BOOT_DIR "/vram.txt"
+#define VRAM_FIRST 1024u	// install and first start need the RAM, not the GPU
+static const uint32_t vram_sizes[] = { 1024, 2048, 3072, 4096 };
+#define N_VRAM (sizeof(vram_sizes) / sizeof(vram_sizes[0]))
 
 // ------------------------------------------------------------------ logging
 static void klog(const char *fmt, ...)
@@ -235,6 +251,24 @@ static int read_small(const char *path, char *buf, size_t cap)
 	if (n <= 0) return -1;
 	buf[n] = 0;
 	return 0;
+}
+
+// The graphics memory currently in effect, in MB. Anything unreadable or out of
+// the loader's documented range falls back to the first-start value.
+static uint32_t vram_current(void)
+{
+	char b[32];
+	if (read_small(VRAM_FILE, b, sizeof(b)) != 0) return VRAM_FIRST;
+	unsigned long v = strtoul(b, NULL, 10);
+	if (v < 32 || v > 4096) return VRAM_FIRST;
+	return (uint32_t)v;
+}
+
+static int write_vram(uint32_t mb)
+{
+	char b[16];
+	snprintf(b, sizeof(b), "%u\n", mb);
+	return write_small(VRAM_FILE, b);
 }
 
 // ------------------------------------------------------------------ free space
@@ -521,6 +555,31 @@ static uint64_t ask_install(uint64_t start, uint64_t avail)
 		           n > 1 ? "\n\n\"Next size\" shows the other sizes." : "");
 		if (r == 0) quit();
 		if (r == 1 || n == 1) return g;
+	}
+}
+
+// Returns the size the user picked, in MB. Quits on cancel. Two buttons that
+// cycle, the same way the install size works: the dialog API has no list control.
+static uint32_t ask_vram(uint32_t current)
+{
+	for (int i = 0;; i = (i + 1) % N_VRAM) {
+		uint32_t mb = vram_sizes[i];
+		const char *tag = mb == VRAM_FIRST ? "  (recommended for the first start)"
+		                : mb == 2048 ? "  (usual desktop choice)"
+		                : mb == 4096 ? "  (leaves 4 GB for programs)" : "";
+		const char *now = mb == current ? "  <- current" : "";
+		int r = dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS, "Use this size", "Next size",
+		               "Graphics memory (VRAM): %u MB%s%s\n\n"
+		               "The console has one 8 GB pool for both the CPU and the GPU. "
+		               "%u MB goes to the graphics chip and %u MB stays as system "
+		               "memory.\n\n"
+		               "Installing and the first start need that memory more than the "
+		               "GPU does: keep 1024 MB until Linux is up, then 2048 MB for a "
+		               "desktop.\n\n"
+		               "\"Next size\" shows the other sizes.",
+		               mb, tag, now, mb, 8192u - mb);
+		if (r == 0) quit();
+		if (r == 1) return mb;
 	}
 }
 
@@ -854,13 +913,39 @@ int main(void)
 		       "it: an autoloaded Linux payload makes the console restart in a loop "
 		       "every time you jailbreak.\n\nSee docs/RECOVERY.md.", al);
 
-	// 3. already installed -> just ask whether to start
+	// 3. already installed -> start, or change the graphics memory first. The
+	//    app stays installed after the install (it is the only way to start Linux
+	//    again), so this is where the setting lives for the rest of the console's
+	//    life - no file editing, no FTP.
 	if (installed) {
-		int r = dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS, "Start Linux", "Cancel",
-		               "Linux is already installed on this console.\n\nStart Linux "
-		               "now?\n\nThe PS4 system restarts into Linux. Use Restart inside "
-		               "Linux to come back.");
-		if (r != 1) quit();
+		uint32_t vram = vram_current();
+		int r = dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS, "Start Linux", "Options",
+		               "Linux is already installed on this console.\n\n"
+		               "Graphics memory (VRAM): %u MB. The rest of the 8 GB is system "
+		               "memory.\n\n"
+		               "Start Linux now?\n\n"
+		               "\"Options\" changes the graphics memory. Either way the PS4 "
+		               "system restarts into Linux; use Restart inside Linux to come "
+		               "back.",
+		               vram);
+		if (r == 0) quit();
+		if (r == 2) {
+			vram = ask_vram(vram);
+			if (write_vram(vram) != 0) {
+				dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
+				       "Could not write %s (error %d).\n\nNothing else was changed. "
+				       "Check that the PS4 drive is writable and try again.",
+				       VRAM_FILE, errno);
+				quit();
+			}
+			klog("vram.txt set to %u MB", vram);
+			r = dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS, "Start Linux", "Not now",
+			           "Graphics memory is now %u MB.\n\n"
+			           "It applies to the next start of Linux, including this one. "
+			           "Start Linux now?",
+			           vram);
+			if (r != 1) quit();
+		}
 		goldhen_unjailbreak();
 		if (send_payload(loader_fd) != 0) {
 			dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
@@ -927,6 +1012,13 @@ int main(void)
 		}
 	}
 
+	// First start: 1 GB of VRAM. Every guide says the same thing - the install and
+	// the first boot need the RAM more than the GPU does - and 1 GB is what the
+	// loader itself defaults to when vram.txt is missing. Written explicitly so the
+	// value is visible, and so a later start can change it without guesswork.
+	if (write_vram(VRAM_FIRST) != 0)
+		klog("could not write vram.txt (errno %d)", errno);
+
 	// GoldHEN's payload menu lists the files in /data/payloads, and starting the
 	// loader from that menu is the way in when BinLoader (port 9090) is switched
 	// off. The reference project keeps a copy there for the same reason. Not
@@ -985,6 +1077,8 @@ int main(void)
 	int r = dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS, "Start Linux", "Not now",
 	               "Setup is finished.\n\nStart Linux now?\n\nThe console restarts into "
 	               "Linux and finishes the install there (LED orange).\n\n"
+	               "Graphics memory is set to 1024 MB, which is what the first start "
+	               "should use. Launch this app again later to change it.\n\n"
 	               "If you choose \"Not now\", launch this app again when you are ready.");
 	if (r != 1) {
 		dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,

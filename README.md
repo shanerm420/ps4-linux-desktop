@@ -30,7 +30,7 @@ is `untested`, because no console was available.
 
 | Package | TITLE_ID | What it does |
 |---|---|---|
-| PS4 Linux Desktop | `PS4LNX001` | Installs Linux: briefing, target, size, reserve, start |
+| PS4 Linux Desktop | `PS4LNX001` | Installs Linux: briefing, target, size, reserve, start. Re-launching it later changes the graphics memory size |
 | PS4 Linux: Remove ChromeOS | `PS4LNX002` | Removes a ChromeOS-for-PS4 install, and nothing else |
 
 Separate on purpose. The installer never deletes a file that existed before it
@@ -143,6 +143,13 @@ replaced the package cannot boot.
 
 ## Design decisions worth knowing before you change anything
 
+- **Graphics memory is a menu choice, not a file edit.** The loader reads `vram.txt`
+  (a plain number in MB) next to the `bzImage`, and that file beats whichever
+  payload was launched — which is why we ship one payload path and four numbers
+  instead of four payloads. The installer writes 1024 MB for the first start
+  (installing needs the RAM more than the GPU does) and offers 1024/2048/3072/4096
+  from the app afterwards. The PS4 has a single 8 GB pool: every megabyte given to
+  the GPU is taken from system memory.
 - **The boot directory cannot be namespaced.** The loader's search path is fixed
   upstream, so we own `/data/linux/boot` explicitly and back up what was there.
   See `docs/LAYOUT.md`.
