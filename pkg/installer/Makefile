@@ -87,8 +87,10 @@ sce_module/%.prx:
 	@mkdir -p sce_module
 	cp "$(MODSRC)/$*.prx" $@
 
-# Package artwork. Not committed: it ships with the OpenOrbis samples, and a
-# binary blob in this repository would need its own licensing answer.
+# Package artwork. artwork/icon0.png is this project's own tile - 512x512 PNG,
+# the size the home screen loads - and is what ships. The OpenOrbis sample is only
+# a fallback for a tree where the project file is missing.
+ARTWORK     := artwork/icon0.png
 SAMPLES     := $(TOOLCHAIN)/samples/hello_world/sce_sys
 
 sce_sys/about/right.sprx:
@@ -98,12 +100,21 @@ sce_sys/about/right.sprx:
 	@mkdir -p sce_sys/about
 	cp "$(SAMPLES)/about/right.sprx" $@
 
-sce_sys/icon0.png:
-	@[ -f "$(SAMPLES)/icon0.png" ] || { \
-		echo "no package artwork at $(SAMPLES)/icon0.png" >&2; \
-		echo "set OO_PS4_TOOLCHAIN to a full toolchain (samples/ must exist)" >&2; exit 1; }
+# FORCE: an icon left over from an earlier build would otherwise be kept, since
+# the target has no prerequisites that change when the artwork does.
+sce_sys/icon0.png: FORCE
 	@mkdir -p sce_sys
-	cp "$(SAMPLES)/icon0.png" $@
+	@if [ -f "$(ARTWORK)" ]; then \
+		echo "  icon: $(ARTWORK) (this project's tile)"; \
+		cp "$(ARTWORK)" $@; \
+	elif [ -f "$(SAMPLES)/icon0.png" ]; then \
+		echo "  icon: OpenOrbis sample - $(ARTWORK) is missing from this tree"; \
+		cp "$(SAMPLES)/icon0.png" $@; \
+	else \
+		echo "no package artwork: neither $(ARTWORK) nor $(SAMPLES)/icon0.png" >&2; \
+		echo "set OO_PS4_TOOLCHAIN to a full toolchain (samples/ must exist)" >&2; \
+		exit 1; \
+	fi
 
 pkg.gp4: eboot.bin sce_sys/about/right.sprx sce_sys/param.sfo sce_sys/icon0.png \
          $(LIBMODULES) $(ASSETS)
