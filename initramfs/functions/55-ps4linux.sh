@@ -1,4 +1,4 @@
-# PS4 Linux Desktop - initramfs boot/install logic.
+# PS4 Linux - initramfs boot/install logic.
 #
 # Sourced by the initramfs-ps4 init after ps4hdd_open has mounted the PS4 drive
 # at /ps4hdd. POSIX sh (busybox), no bashisms, no set -e: a failing step must
@@ -119,6 +119,43 @@ ps4l_has_root() {
 	[ -x "$PS4L_MOUNT/sbin/init" ] || [ -x "$PS4L_MOUNT/usr/lib/systemd/systemd" ] || [ -x "$PS4L_MOUNT/init" ]
 }
 
+# Autoload policy, set in the app (Autoload -> Boot behaviour) and stored next to
+# the kernel, because there is no UI here to ask with:
+#   ask    - leave the entry, leave a note; the app offers to remove it next launch
+#   remove - delete the known autoload files now, so this console cannot loop
+#   keep   - never touch them
+# Only ever acts on entries that exist, and only on the known paths.
+ps4l_autoload_entries() {
+	ls -d /ps4hdd/data/GoldHEN/autoload 2>/dev/null
+	ls -d /ps4hdd/data/GoldHEN/autoload.txt 2>/dev/null
+	ls -d /ps4hdd/data/bdj_autoload.cfg 2>/dev/null
+	ls -d /ps4hdd/data/payloads/autoload.txt 2>/dev/null
+}
+
+ps4l_autoload_policy() {
+	ps4l_autoload_entries | grep -q . || return 0
+	pol=$(sed -n 's/^[[:space:]]*//;s/[[:space:]]*$//p' \
+	      /ps4hdd/data/linux/boot/autoload-policy 2>/dev/null | head -n 1)
+	[ -n "$pol" ] || pol=ask
+	case "$pol" in
+	remove)
+		rm -rf /ps4hdd/data/GoldHEN/autoload 2>/dev/null
+		rm -f /ps4hdd/data/GoldHEN/autoload.txt \
+		      /ps4hdd/data/bdj_autoload.cfg \
+		      /ps4hdd/data/payloads/autoload.txt 2>/dev/null
+		ps4l_msg "autoload: entries removed during boot (policy: remove)"
+		;;
+	keep)
+		ps4l_msg "autoload: left alone (policy: keep)"
+		;;
+	*)
+		mkdir -p "$PS4L_STATE" 2>/dev/null
+		: > "$PS4L_STATE/autoload-seen" 2>/dev/null
+		ps4l_msg "autoload: noted for the app to ask about (policy: ask)"
+		;;
+	esac
+}
+
 ps4linux_boot() {
 	if ps4l_recovery_requested; then
 		ps4l_shell "ps4linux-recovery found on a USB drive"
@@ -137,6 +174,11 @@ ps4linux_boot() {
 		ps4l_mount_root || ps4l_shell "could not mount the freshly installed root filesystem"
 		ps4l_has_root || ps4l_shell "the installed rootfs has no init - the tarball is wrong"
 	fi
+
+	# Before the root filesystem takes over: an autoload entry that launched this
+	# boot is still armed for the next one. This is the only chance to deal with it
+	# from inside Linux, since the app runs in OrbisOS.
+	ps4l_autoload_policy
 
 	ps4_change_led white
 	mount --move /proc "$PS4L_MOUNT/proc" 2>/dev/null

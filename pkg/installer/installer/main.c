@@ -1,29 +1,30 @@
-// PS4 Linux Desktop - installer (OpenOrbis homebrew, needs GoldHEN + BinLoader).
+// PS4 Linux - the app that installs Linux and then starts it, every time
+// (OpenOrbis homebrew, needs GoldHEN + BinLoader). It is not called an installer
+// because installing is only the first thing it does: after that it is the way in.
 //
 // Flow, in the order the user sees it:
 //
 //   1. find the package's files
 //   2. look for an existing install (ours, or ChromeOS for PS4)
-//   3. "Before you begin" briefing - several pages, Cancel on every one
-//   4. where: PS4 drive or USB drive
-//   5. how much space (only sizes that actually fit)
-//   6. if a ChromeOS-for-PS4 install is found: say so and install beside it
-//      (removing it is a separate package, PS4LNX002 - installer/remove.c)
-//   7. copy files, write vram.txt (1 GB for the first start), reserve space from
-//      OrbisOS, wait for the drive to settle
-//   8. "Start Linux now?" - explicit confirmation, Cancel returns to the PS4 menu
+//   3. deal with an autoload entry: the boot side's note, then anything armed
+//   4. the menu, one entry per category, each with its own submenu:
+//        installed:     Start Linux | Graphics memory | Autoload |
+//                       Remove ChromeOS | Recovery
+//        not installed: Install Linux | Autoload | Remove ChromeOS | Recovery
+//   5. installing only: "Before you begin" briefing (Cancel on every page), where
+//      (PS4 drive or USB), how much space, copy files, write vram.txt at 1 GB,
+//      reserve space from OrbisOS, wait for the drive to settle, confirm, start
 //
-// Once Linux is installed, launching the app again offers the graphics memory
-// size as well. The loader reads that number from vram.txt next to the bzImage
-// and ignores the payload's own size when the file is there, so changing it is a
+// The loader reads the graphics memory from vram.txt next to the bzImage and
+// ignores the payload's own size when the file is there, so that setting is a
 // menu choice here and never a file edit on the console.
 //
 // Hard rules encoded here:
 //   * this app deletes nothing that existed before it ran, with one exception the
-//     user asks for by name: a payload autoload entry (autoload_offer_remove).
-//     Its unlink() calls otherwise only remove temporary files it created itself
-//     (.part, its probe, its own reserve). Removing a ChromeOS install is
-//     PS4LNX002's whole job;
+//     user asks for by name: a payload autoload entry (autoload_offer_remove),
+//     which it lists first and only removes from the known paths. Its unlink()
+//     calls otherwise only remove temporary files it created itself (.part, its
+//     probe, its own reserve). Removing a ChromeOS install is PS4LNX002's job;
 //   * shared boot files (bzImage, initramfs.cpio.gz) are backed up before we
 //     write ours, because the loader's search path is fixed (see docs/LAYOUT.md);
 //   * this app never writes, registers or modifies any payload autoload config;
@@ -50,7 +51,7 @@
 #include <orbis/libkernel.h>
 #include <orbis/Net.h>
 
-#define APP_NAME "PS4 Linux Desktop"
+#define APP_NAME "PS4 Linux"
 
 // ------------------------------------------------------------------ paths
 // The loader's search order is fixed by upstream (USB first, then
@@ -459,31 +460,37 @@ static int remove_path(const char *path)
 	return unlink(path) == 0 ? 1 : -1;
 }
 
-// Lists what is armed, asks, and deletes only those paths. Returns 1 if anything
-// was removed.
-static int autoload_offer_remove(void)
+// Everything that is armed, one per line: the four list files, and whatever sits
+// inside GoldHEN's autoload folder. Returns how many were found.
+static int autoload_listing(char *buf, size_t cap)
 {
-	char listing[512];
 	size_t used = 0;
 	int n = 0;
-	listing[0] = 0;
+	buf[0] = 0;
 	for (int i = 0; k_autoload[i]; i++) {
 		if (!exists(k_autoload[i])) continue;
-		int add = snprintf(listing + used, sizeof(listing) - used, "  %s\n", k_autoload[i]);
-		if (add > 0) used += (size_t)add;
+		int add = snprintf(buf + used, cap - used, "  %s\n", k_autoload[i]);
+		if (add > 0 && (size_t)add < cap - used) used += (size_t)add;
 		n++;
 	}
-	if (!n) return 0;
+	DIR *d = opendir("/data/GoldHEN/autoload");
+	if (d) {
+		struct dirent *e;
+		while ((e = readdir(d)) != NULL) {
+			if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+			int add = snprintf(buf + used, cap - used,
+			                   "  /data/GoldHEN/autoload/%s\n", e->d_name);
+			if (add > 0 && (size_t)add < cap - used) used += (size_t)add;
+			n++;
+		}
+		closedir(d);
+	}
+	return n;
+}
 
-	int r = dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS, "Remove it", "Keep it",
-	               "A payload autoload file was found:\n%s\n"
-	               "This app never creates one and never writes one. An autoloaded "
-	               "Linux payload makes the console restart in a loop every time "
-	               "GoldHEN loads.\n\n"
-	               "Remove it now? Only the file(s) listed above are deleted. "
-	               "Nothing else on the console is touched.", listing);
-	if (r != 1) return 0;
-
+// Deletes exactly what autoload_listing() shows. Returns 1 if anything went.
+static int autoload_remove_all(void)
+{
 	int gone = 0, failed = 0;
 	for (int i = 0; k_autoload[i]; i++) {
 		if (!exists(k_autoload[i])) continue;
@@ -501,11 +508,85 @@ static int autoload_offer_remove(void)
 		       "If the console still goes into Linux by itself, the entry is "
 		       "somewhere else: check GoldHEN's own settings screen, and "
 		       "docs/RECOVERY.md.", gone, failed);
-	else
+	else if (gone)
 		dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
 		       "Removed %d autoload file(s).\n\nGoldHEN loads normally from now on, "
 		       "and Linux starts only from this app.", gone);
 	return gone;
+}
+
+// Lists what is armed and, if the user says so, removes it. The only deletion
+// this app performs, and only after the paths have been shown.
+static int autoload_offer_remove(void)
+{
+	char listing[768];
+	int n = autoload_listing(listing, sizeof(listing));
+	if (!n) return 0;
+
+	int r = dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS, "Remove it", "Keep it",
+	               "A payload autoload file was found:\n%s\n"
+	               "This app never creates one and never writes one. An autoloaded "
+	               "Linux payload makes the console restart in a loop every time "
+	               "GoldHEN loads.\n\n"
+	               "Remove it now? Only the file(s) listed above are deleted. "
+	               "Nothing else on the console is touched.", listing);
+	if (r != 1) return 0;
+	return autoload_remove_all();
+}
+
+// What a Linux boot should do about an autoload entry. The initramfs has no UI to
+// ask with, so the choice is made here and stored next to the kernel, where the
+// boot function reads it:
+//   ask    - leave it, leave a note, and let this app ask next launch (default)
+//   remove - delete it during boot: a console that reaches Linux cannot loop again
+//   keep   - never touch it
+#define AUTOLOAD_POLICY BOOT_DIR "/autoload-policy"
+#define AUTOLOAD_NOTE STATE_DIR "/autoload-seen"
+
+static const char *autoload_policy(void)
+{
+	static char b[16];
+	if (read_small(AUTOLOAD_POLICY, b, sizeof(b)) != 0) return "ask";
+	if (strstr(b, "remove")) return "remove";
+	if (strstr(b, "keep")) return "keep";
+	return "ask";
+}
+
+static void set_autoload_policy(const char *v)
+{
+	char b[16];
+	snprintf(b, sizeof(b), "%s\n", v);
+	if (write_small(AUTOLOAD_POLICY, b) != 0)
+		dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
+		       "Could not write %s (error %d).", AUTOLOAD_POLICY, errno);
+	else
+		dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
+		       "Boot behaviour is now: %s", v);
+}
+
+// The note the boot side leaves when the policy is "ask": Linux was started by an
+// autoload entry, which is the situation that turns into a loop.
+static void autoload_note_prompt(void)
+{
+	if (!exists(AUTOLOAD_NOTE)) return;
+	unlink(AUTOLOAD_NOTE);
+	autoload_offer_remove();
+}
+
+// ------------------------------------------------------------------ menu
+// The dialog API has two buttons and no list control, so a menu is one entry per
+// screen: button 1 opens the entry shown, button 2 shows the next one.
+static int menu(const char *title, const char *const *items, int n, int start)
+{
+	int i = start % n;
+	for (;;) {
+		int r = dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS, "Select", "Next",
+		               "%s\n\n        > %s\n\n\"Select\" opens this. \"Next\" shows "
+		               "the other entries.", title, items[i]);
+		if (r == 0) return -1;
+		if (r == 1) return i;
+		i = (i + 1) % n;
+	}
 }
 
 // ------------------------------------------------------------------ briefing
@@ -650,6 +731,141 @@ static uint32_t ask_vram(uint32_t current)
 		               mb, tag, now, mb, 8192u - mb);
 		if (r == 0) quit();
 		if (r == 1) return mb;
+	}
+}
+
+// ------------------------------------------------------------------ submenus
+static void vram_menu(void)
+{
+	static const char *const items[] = { "Show current size", "Change it", "Back" };
+	for (;;) {
+		int m = menu("Graphics memory", items, 3, 0);
+		if (m < 0 || m == 2) return;
+		uint32_t v = vram_current();
+		if (m == 0) {
+			dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
+			       "Graphics memory (VRAM): %u MB\n\n"
+			       "That much of the 8 GB pool goes to the graphics chip; %u MB "
+			       "stays as system memory. It applies to the next start.",
+			       v, 8192u - v);
+			continue;
+		}
+		v = ask_vram(v);
+		if (write_vram(v) != 0)
+			dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
+			       "Could not write %s (error %d).", VRAM_FILE, errno);
+		else
+			dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
+			       "Graphics memory is now %u MB.", v);
+	}
+}
+
+static void autoload_menu(void)
+{
+	static const char *const items[] = {
+		"Check what is armed", "Remove the entry", "Boot behaviour", "Back",
+	};
+	for (;;) {
+		int m = menu("Autoload", items, 4, 0);
+		if (m < 0 || m == 3) return;
+		if (m == 0) {
+			char listing[768];
+			int n = autoload_listing(listing, sizeof(listing));
+			if (!n)
+				dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
+				       "Nothing is armed.\n\nNo GoldHEN autoload entry was found, so "
+				       "the console cannot start Linux by itself.");
+			else
+				dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
+				       "Found %d autoload file(s):\n%s\nThese are what make GoldHEN "
+				       "start Linux by itself, and an entry that fires on every "
+				       "jailbreak is how consoles end up looping.", n, listing);
+			continue;
+		}
+		if (m == 1) {
+			if (!autoload_offer_remove())
+				dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
+				       "Nothing was removed.");
+			continue;
+		}
+		// Boot behaviour: ask / remove / keep, cycling.
+		const char *cur = autoload_policy();
+		const char *next = !strcmp(cur, "ask") ? "remove"
+		                 : !strcmp(cur, "remove") ? "keep" : "ask";
+		int r = dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS, "Change it", "Back",
+		               "What a Linux start should do about an autoload entry:\n\n"
+		               "  ask    - leave it, then ask me here next time\n"
+		               "  remove - delete it during the boot, so the console cannot "
+		               "loop again\n"
+		               "  keep   - never touch it\n\n"
+		               "Current: %s\n\n\"Change it\" sets: %s", cur, next);
+		if (r == 1) set_autoload_policy(next);
+	}
+}
+
+static void cros_menu(const struct cros_found *c)
+{
+	static const char *const items[] = { "What was found", "Back" };
+	for (;;) {
+		int m = menu("Remove ChromeOS", items, 2, 0);
+		if (m < 0 || m == 1) return;
+		if (!c->image && !c->n_boot)
+			dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
+			       "No ChromeOS for PS4 installation was found.");
+		else
+			dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
+			       "Image: %llu MB\nOther files: %d (%llu MB)\n\n"
+			       "Removing it is the job of the separate app \"PS4 Linux: Remove "
+			       "ChromeOS\": it lists every file with its size and asks twice. "
+			       "This app never deletes it, so installing Linux can never erase "
+			       "an existing install.",
+			       (unsigned long long)(c->image_size >> 20), c->n_boot,
+			       (unsigned long long)(c->boot_bytes >> 20));
+	}
+}
+
+static void recovery_menu(void)
+{
+	static const char *const items[] = {
+		"Rescue flag on a USB stick", "After a boot loop", "Back",
+	};
+	for (;;) {
+		int m = menu("Recovery", items, 3, 0);
+		if (m < 0 || m == 2) return;
+		if (m == 0) {
+			static const char *const usb[] = { "/mnt/usb0", "/mnt/usb1", "/mnt/usb2" };
+			int ok = 0;
+			for (size_t i = 0; i < sizeof(usb) / sizeof(usb[0]); i++) {
+				char p[64];
+				snprintf(p, sizeof(p), "%s/ps4linux-recovery", usb[i]);
+				if (!exists(usb[i])) continue;
+				if (write_small(p, "ps4linux recovery\n") == 0) {
+					ok++;
+					klog("rescue flag written to %s", p);
+				}
+			}
+			if (ok)
+				dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
+				       "The flag is on the stick.\n\nStart Linux with it plugged in and "
+				       "the boot stops at a rescue shell before touching the image.");
+			else
+				dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
+				       "No USB stick was found to write the flag to.\n\nCreate an "
+				       "empty file named ps4linux-recovery in the root of a FAT32 "
+				       "stick on a PC instead.");
+			continue;
+		}
+		dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
+		       "A boot loop means GoldHEN is autoloading a Linux payload.\n\n"
+		       "1. Power off by holding the button.\n"
+		       "2. Start the exploit with a loader that does not autoload payloads "
+		       "(NextHEN, PS4HEN Lite, Mira).\n"
+		       "3. Delete the payload and the entry that names it - or, if the "
+		       "console boots normally again, let this app do it from the Autoload "
+		       "menu.\n"
+		       "4. Put the payload file back on a stick or in /data/payloads and "
+		       "launch this app: it restores the copy and starts Linux.\n\n"
+		       "docs/RECOVERY.md has the long version.");
 	}
 }
 
@@ -1036,10 +1252,11 @@ int main(void)
 	struct cros_found cros;
 	cros_scan(&cros);
 
-	// An armed autoload entry is the one thing that can keep this app from ever
-	// running, so it is dealt with first - and only if the user says so. If the
-	// entry is currently looping, the app never gets here at all; docs/RECOVERY.md
-	// covers that case.
+	// A note from the boot side ("Linux was started by an autoload entry") and an
+	// armed entry are the same problem, so both are dealt with first - and only if
+	// the user says so. If the entry is currently looping, the app never gets here
+	// at all; docs/RECOVERY.md covers that case.
+	autoload_note_prompt();
 	autoload_offer_remove();
 
 	// 3. already installed -> start, or change the graphics memory first. The
@@ -1047,33 +1264,21 @@ int main(void)
 	//    again), so this is where the setting lives for the rest of the console's
 	//    life - no file editing, no FTP.
 	if (installed) {
-		uint32_t vram = vram_current();
-		int r = dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS, "Start Linux", "Options",
-		               "Linux is already installed on this console.\n\n"
-		               "Graphics memory (VRAM): %u MB. The rest of the 8 GB is system "
-		               "memory.\n\n"
-		               "Start Linux now?\n\n"
-		               "\"Options\" changes the graphics memory. Either way the PS4 "
-		               "system restarts into Linux; use Restart inside Linux to come "
-		               "back.",
-		               vram);
-		if (r == 0) quit();
-		if (r == 2) {
-			vram = ask_vram(vram);
-			if (write_vram(vram) != 0) {
-				dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
-				       "Could not write %s (error %d).\n\nNothing else was changed. "
-				       "Check that the PS4 drive is writable and try again.",
-				       VRAM_FILE, errno);
-				quit();
-			}
-			klog("vram.txt set to %u MB", vram);
-			r = dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS, "Start Linux", "Not now",
-			           "Graphics memory is now %u MB.\n\n"
-			           "It applies to the next start of Linux, including this one. "
-			           "Start Linux now?",
-			           vram);
-			if (r != 1) quit();
+		// One entry per category, each with its own submenu. This app is the only
+		// way to start Linux, so it is also where everything about the install
+		// lives - and Start Linux stays the first entry, one press away.
+		static const char *const items[] = {
+			"Start Linux", "Graphics memory (VRAM)", "Autoload",
+			"Remove ChromeOS", "Recovery",
+		};
+		for (;;) {
+			int m = menu(APP_NAME, items, 5, 0);
+			if (m < 0) quit();
+			if (m == 1) { vram_menu(); continue; }
+			if (m == 2) { autoload_menu(); continue; }
+			if (m == 3) { cros_menu(&cros); continue; }
+			if (m == 4) { recovery_menu(); continue; }
+			break;	// Start Linux
 		}
 		if (!have_loader) {
 			dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
@@ -1114,6 +1319,22 @@ int main(void)
 			quit();
 		}
 		for (;;) sceKernelUsleep(1000000);
+	}
+
+	// Nothing installed yet: the menu still exists, so the autoload, ChromeOS and
+	// recovery entries are reachable without starting an install.
+	{
+		static const char *const items[] = {
+			"Install Linux", "Autoload", "Remove ChromeOS", "Recovery",
+		};
+		for (;;) {
+			int m = menu(APP_NAME, items, 4, 0);
+			if (m < 0) quit();
+			if (m == 1) { autoload_menu(); continue; }
+			if (m == 2) { cros_menu(&cros); continue; }
+			if (m == 3) { recovery_menu(); continue; }
+			break;	// Install Linux
+		}
 	}
 
 	// 4. briefing
