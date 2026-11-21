@@ -58,7 +58,7 @@ static char SRC[128];
 #define STATE_DIR "/data/ps4linux"
 #define MANIFEST STATE_DIR "/manifest.txt"
 #define IMAGE "/user/app/ps4linux.img"
-#define ALOOC BOOT_DIR "/ps4linux.img.alloc"
+#define ALLOC BOOT_DIR "/ps4linux.img.alloc"
 #define USB "/mnt/usb0"
 #define USB_MARKER USB "/PS4LINUX-TARGET.txt"
 #define GB (1024ULL * 1024ULL * 1024ULL)
@@ -72,23 +72,23 @@ static const char *boot_files[] = {
 // ------------------------------------------------------------------ logging
 static void klog(const char *fmt, ...)
 {
-	char buff[512];
+	char buf[512];
 	va_list ap;
 	va_start(ap, fmt);
-	int n = vsnprint(buff, sizeof(buff) - 2, fmt, ap);
+	int n = vsnprintf(buf, sizeof(buf) - 2, fmt, ap);
 	va_end(ap);
 	if (n < 0) return;
-	if (n > (int)sizeof(buff) - 3) n = (int)sizeof(buff) - 3;
-	buff[n] = '\n';
-	buff[n + 1] = 0;
+	if (n > (int)sizeof(buf) - 3) n = (int)sizeof(buf) - 3;
+	buf[n] = '\n';
+	buf[n + 1] = 0;
 	sceKernelDebugOutText(0, "[ps4linux] ");
-	sceKernelDebugOutText(0, buff);
+	sceKernelDebugOutText(0, buf);
 }
 
 // ------------------------------------------------------------------ dialogs
 static void dialog_param_init(OrbisMsgDialogParam *p)
 {
-	memst(p, 0, sizeof(*p));
+	memset(p, 0, sizeof(*p));
 	p->baseParam.size = sizeof(OrbisCommonDialogBaseParam);
 	p->baseParam.magic = (uint32_t)(ORBIS_COMMON_DIALOG_MAGIC_NUMBER + (uint64_t)&p->baseParam);
 	p->size = sizeof(*p);
@@ -101,7 +101,7 @@ static int dialog(OrbisMsgDialogButtonType type, const char *b1, const char *b2,
 	static char msg[2048];
 	va_list ap;
 	va_start(ap, fmt);
-	vsnprint(msg, sizeof(msg), fmt, ap);
+	vsnprintf(msg, sizeof(msg), fmt, ap);
 	va_end(ap);
 
 	OrbisMsgDialogParam p;
@@ -109,12 +109,12 @@ static int dialog(OrbisMsgDialogButtonType type, const char *b1, const char *b2,
 	OrbisMsgDialogButtonsParam bp;
 	OrbisMsgDialogResult r;
 	dialog_param_init(&p);
-	memst(&um, 0, sizeof(um));
-	memst(&bp, 0, sizeof(bp));
+	memset(&um, 0, sizeof(um));
+	memset(&bp, 0, sizeof(bp));
 	p.mode = ORBIS_MSG_DIALOG_MODE_USER_MSG;
 	um.buttonType = type;
 	um.msg = msg;
-	if (type == ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTONS) {
+	if (type == ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS) {
 		bp.msg1 = b1;
 		bp.msg2 = b2;
 		um.buttonsParam = &bp;
@@ -127,7 +127,7 @@ static int dialog(OrbisMsgDialogButtonType type, const char *b1, const char *b2,
 	}
 	while (sceMsgDialogUpdateStatus() != ORBIS_COMMON_DIALOG_STATUS_FINISHED)
 		sceKernelUsleep(10000);
-	memst(&r, 0, sizeof(r));
+	memset(&r, 0, sizeof(r));
 	sceMsgDialogGetResult(&r);
 	sceMsgDialogTerminate();
 	if (r.buttonId == ORBIS_MSG_DIALOG_BUTTON_ID_BUTTON1) return 1;
@@ -140,7 +140,7 @@ static int progress_open(const char *msg)
 	OrbisMsgDialogParam p;
 	OrbisMsgDialogProgressBarParam pb;
 	dialog_param_init(&p);
-	memst(&pb, 0, sizeof(pb));
+	memset(&pb, 0, sizeof(pb));
 	p.mode = ORBIS_MSG_DIALOG_MODE_PROGRESS_BAR;
 	pb.barType = ORBIS_MSG_DIALOG_PROGRESSBAR_TYPE_PERCENTAGE;
 	pb.msg = msg;
@@ -197,43 +197,43 @@ static int exists(const char *path)
 static void mkdirs(const char *path)
 {
 	char tmp[256];
-	snprint(tmp, sizeof(tmp), "%s", path);
+	snprintf(tmp, sizeof(tmp), "%s", path);
 	for (char *p = tmp + 1; *p; p++) {
 		if (*p == '/') {
 			*p = 0;
-			mkd(tmp, 0777);
+			mkdir(tmp, 0777);
 			*p = '/';
 		}
 	}
-	mkd(tmp, 0777);
+	mkdir(tmp, 0777);
 }
 
 static int write_small(const char *path, const char *text)
 {
 	char part[288];
-	snprint(part, sizeof(part), "%s.part", path);
-	int fd = open(part, O_WRONLY | O_CREATE | O_TRUNK, 0666);
+	snprintf(part, sizeof(part), "%s.part", path);
+	int fd = open(part, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 	if (fd < 0) return -1;
 	size_t n = strlen(text);
 	ssize_t w = write(fd, text, n);
 	fsync(fd);
 	close(fd);
 	if (w != (ssize_t)n || rename(part, path) != 0) {
-		unlint(part);
+		unlink(part);
 		return -1;
 	}
-	chmode(path, 0666);
+	chmod(path, 0666);
 	return 0;
 }
 
-static int read_small(const char *path, char *buff, size_t cap)
+static int read_small(const char *path, char *buf, size_t cap)
 {
 	int fd = open(path, O_RDONLY);
 	if (fd < 0) return -1;
-	ssize_t n = read(fd, buff, cap - 1);
+	ssize_t n = read(fd, buf, cap - 1);
 	close(fd);
 	if (n <= 0) return -1;
-	buff[n] = 0;
+	buf[n] = 0;
 	return 0;
 }
 
@@ -249,7 +249,7 @@ static long orbis_syscall3(long num, long a1, long a2, long a3)
 	__asm__ volatile("syscall\n\tsetc %1"
 	                 : "=a"(ret), "=r"(err)
 	                 : "a"(num), "D"(a1), "S"(a2), "d"(a3)
-	                 : "rcx", "r11", "memery");
+	                 : "rcx", "r11", "memory");
 	return err ? -ret : ret;
 }
 
@@ -274,21 +274,21 @@ static uint64_t free_bytes(const char *path)
 	static unsigned char all[64 * STATFS_SIZE];
 	uint64_t f = 0;
 
-	memst(sf, 0, sizeof(sf));
+	memset(sf, 0, sizeof(sf));
 	if (orbis_syscall3(396, (long)path, (long)sf, 0) >= 0 &&
 	    fs_parse((unsigned char *)sf, &f) == 0)
 		return f;
 
 	int fd = open(path, O_RDONLY);
 	if (fd >= 0) {
-		memst(sf, 0, sizeof(sf));
+		memset(sf, 0, sizeof(sf));
 		long r = orbis_syscall3(397, (long)fd, (long)sf, 0);
 		close(fd);
 		if (r >= 0 && fs_parse((unsigned char *)sf, &f) == 0)
 			return f;
 	}
 
-	memst(all, 0, sizeof(all));
+	memset(all, 0, sizeof(all));
 	long r = orbis_syscall3(395, (long)all, (long)sizeof(all), 2);
 	if (r < 0) return 0;
 	for (long i = 0; i < r && i < 64; i++) {
@@ -318,7 +318,7 @@ static int jailbroken;
 static int goldhen_jailbreak(void)
 {
 	if (jailbroken) return 0;
-	memst(&jb, 0, sizeof(jb));
+	memset(&jb, 0, sizeof(jb));
 	if (orbis_syscall3(500, GOLDHEN_JAILBREAK, (long)&jb, 0) != 0) return -1;
 	jailbroken = 1;
 	return 0;
@@ -362,7 +362,7 @@ static const char *k_cros_files[] = {
 
 static void cros_scan(struct cros_found *c)
 {
-	memst(c, 0, sizeof(*c));
+	memset(c, 0, sizeof(*c));
 	c->image_size = file_size("/user/app/chromeos.img");
 	c->image = c->image_size > 0;
 	for (int i = 0; k_cros_files[i]; i++) {
@@ -371,7 +371,7 @@ static void cros_scan(struct cros_found *c)
 		c->n_boot++;
 		c->boot_bytes += sz;
 		size_t used = strlen(c->listing);
-		snprint(c->listing + used, sizeof(c->listing) - used, "  %s (%llu MB)\n",
+		snprintf(c->listing + used, sizeof(c->listing) - used, "  %s (%llu MB)\n",
 		         k_cros_files[i], (unsigned long long)(sz >> 20));
 	}
 }
@@ -397,7 +397,7 @@ static int autoload_present(char *first, size_t cap)
 {
 	for (int i = 0; k_autoload[i]; i++) {
 		if (exists(k_autoload[i])) {
-			snprint(first, cap, "%s", k_autoload[i]);
+			snprintf(first, cap, "%s", k_autoload[i]);
 			return 1;
 		}
 	}
@@ -408,7 +408,7 @@ static int autoload_present(char *first, size_t cap)
 // Returns 1 to continue, 0 if the user cancelled. Cancel on any page stops.
 static int briefing(void)
 {
-	if (dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTONS, "Continue", "Cancel",
+	if (dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS, "Continue", "Cancel",
 	           APP_NAME " installs a complete Linux desktop (Debian with XFCE) on this "
 	           "console.\n\n"
 	           "Linux runs INSTEAD of the PS4 system until you restart. Your games, "
@@ -418,7 +418,7 @@ static int briefing(void)
 	           "needs recovery.\n\n"
 	           "Page 1 of 6") != 1) return 0;
 
-	if (dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTONS, "Continue", "Cancel",
+	if (dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS, "Continue", "Cancel",
 	           "WHERE LINUX LIVES\n\n"
 	           "PS4 drive: Linux is stored in one large file on the PS4 drive. Games "
 	           "and saves stay. The space you choose becomes invisible to the PS4, "
@@ -427,7 +427,7 @@ static int briefing(void)
 	           "Faster on an SSD, and your PS4 drive is untouched.\n\n"
 	           "Page 2 of 6", (unsigned long long)(RESERVE_FREE / GB)) != 1) return 0;
 
-	if (dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTONS, "Continue", "Cancel",
+	if (dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS, "Continue", "Cancel",
 	           "WHAT WILL HAPPEN\n\n"
 	           "1. Files are copied to the PS4 drive (about 1 minute).\n"
 	           "2. Space is reserved at once, at full drive speed.\n"
@@ -437,18 +437,18 @@ static int briefing(void)
 	           "drive. Later starts take seconds.\n\n"
 	           "Page 3 of 6") != 1) return 0;
 
-	if (dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTONS, "Continue", "Cancel",
+	if (dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS, "Continue", "Cancel",
 	           "DO NOT POWER OFF\n\n"
 	           "Do not switch off, unplug or reset the console while:\n"
 	           "  - space is being reserved,\n"
 	           "  - it says \"Finishing writing to the PS4 drive\",\n"
 	           "  - the LED is orange (installing).\n\n"
-	           "Interrupting those steps does not kill the console, but it corupts "
+	           "Interrupting those steps does not kill the console, but it corrupts "
 	           "the Linux install and you have to start it again.\n\n"
 	           "LED: white = PS4 system, orange = Linux working, off = off.\n\n"
 	           "Page 4 of 6") != 1) return 0;
 
-	if (dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTONS, "Continue", "Cancel",
+	if (dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS, "Continue", "Cancel",
 	           "STARTING AND RETURNING\n\n"
 	           "To start Linux later: launch this app again and confirm.\n"
 	           "To return to the PS4: use Restart inside Linux.\n\n"
@@ -459,7 +459,7 @@ static int briefing(void)
 	           "every jailbreak immediately restarts it again.\n\n"
 	           "Page 5 of 6") != 1) return 0;
 
-	if (dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTONS, "Continue", "Cancel",
+	if (dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS, "Continue", "Cancel",
 	           "IF SOMETHING GOES WRONG\n\n"
 	           "Nothing to worry about: hold the power button until the console turns "
 	           "off, then start it normally. The PS4 system is not modified by this "
@@ -482,7 +482,7 @@ static uint64_t img_bytes(uint64_t start, uint64_t gib)
 // Returns the STATE size in GiB, or 0 for USB. Quits on cancel.
 static uint64_t ask_install(uint64_t start, uint64_t avail)
 {
-	int r = dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTONS, "PS4 drive", "USB drive",
+	int r = dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS, "PS4 drive", "USB drive",
 	               "Where should Linux be installed?\n\n"
 	               "PS4 drive: games and saves stay. The space you choose becomes "
 	               "invisible to the PS4.\n\n"
@@ -496,8 +496,8 @@ static uint64_t ask_install(uint64_t start, uint64_t avail)
 	if (max_gib < 8) {
 		dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
 		       "Not enough free space: Linux needs at least 8 GB plus %llu GB that "
-	       "always stay free.\n\nFree up space, or install to a USB drive.",
-	       (unsigned long long)(RESERVE_FREE / GB));
+		       "always stay free.\n\nFree up space, or install to a USB drive.",
+		       (unsigned long long)(RESERVE_FREE / GB));
 		quit();
 	}
 
@@ -512,7 +512,7 @@ static uint64_t ask_install(uint64_t start, uint64_t avail)
 		uint64_t g = sizes[i];
 		const char *tag = g == 32 ? "  (recommended)"
 		                        : (g == max_gib ? "  (all the free space)" : "");
-		r = dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTONS, "Install",
+		r = dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS, "Install",
 		           n > 1 ? "Next size" : "Install",
 		           "Space for Linux (system, applications, your files):\n\n"
 		           "        %llu GB%s\n\n"
@@ -527,15 +527,15 @@ static uint64_t ask_install(uint64_t start, uint64_t avail)
 // ------------------------------------------------------------------ reserve
 #define PROBE_FILE BOOT_DIR "/.ps4linux-probe"
 #define PROBE_FAST_US 150000ULL
-#define PROBE_NED 3
-#define SETLE_MIN_S 30
-#define SETLE_MAX_S 600
+#define PROBE_NEED 3
+#define SETTLE_MIN_S 30
+#define SETTLE_MAX_S 600
 
 static uint64_t probe_us(void)
 {
 	static char block[4096];
 	uint64_t t0 = sceKernelGetProcessTime();
-	int fd = open(PROBE_FILE, O_WRONLY | O_CREATE | O_TRUNK, 0666);
+	int fd = open(PROBE_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 	if (fd < 0) return ~0ULL;
 	block[0]++;
 	ssize_t w = write(fd, block, sizeof(block));
@@ -561,57 +561,57 @@ static void settle_drive(void)
 		uint64_t us = probe_us();
 		secs = (int)((sceKernelGetProcessTime() - t0) / 1000000);
 		fast = (us != ~0ULL && us < PROBE_FAST_US) ? fast + 1 : 0;
-		if (fast >= PROBE_NED && secs >= SETLE_MIN_S) break;
-		if (secs >= SETLE_MAX_S) break;
-		snprint(msg, sizeof(msg), "Finishing writing to the PS4 drive ... %d s", secs);
-		progress_set((uint32_t)(secs * 100 / SETLE_MAX_S), msg);
+		if (fast >= PROBE_NEED && secs >= SETTLE_MIN_S) break;
+		if (secs >= SETTLE_MAX_S) break;
+		snprintf(msg, sizeof(msg), "Finishing writing to the PS4 drive ... %d s", secs);
+		progress_set((uint32_t)(secs * 100 / SETTLE_MAX_S), msg);
 		sync();
 		sceKernelUsleep(2 * 1000000);
 	}
-	unlint(PROBE_FILE);
+	unlink(PROBE_FILE);
 	sync();
 	progress_close();
 	klog("drive settled after %d s", secs);
 }
 
-// Reserves `want` bytes as a fully-allocated file (never spars: the PS4's UFS
+// Reserves `want` bytes as a fully-allocated file (never sparse: the PS4's UFS
 // driver is safest that way). Resumes a .part left by an earlier run.
 static int reserve(uint64_t want, uint64_t start, uint64_t gib)
 {
 	static unsigned char zero[4 * 1024 * 1024];
 	char part[288], msg[200];
-	snprint(part, sizeof(part), "%s.part", ALOOC);
+	snprintf(part, sizeof(part), "%s.part", ALLOC);
 
-	if (exists(ALOOC) && file_size(ALOOC) == want) {
+	if (exists(ALLOC) && file_size(ALLOC) == want) {
 		klog("already reserved: %llu MB", (unsigned long long)(want >> 20));
 		return 0;
 	}
-	if (exists(ALOOC) && file_size(ALOOC) != want) {
+	if (exists(ALLOC) && file_size(ALLOC) != want) {
 
-		unlint(ALOOC);
+		unlink(ALLOC);
 		klog("removed a reserve of a different size");
 	}
 
-	int out = open(part, O_WRONLY | O_CREATE, 0666);
+	int out = open(part, O_WRONLY | O_CREAT, 0666);
 	if (out < 0) return -1;
 	uint64_t have = fd_size(out);
 	if (have > want) {
 		close(out);
-		unlint(part);
-		out = open(part, O_WRONLY | O_CREATE, 0666);
+		unlink(part);
+		out = open(part, O_WRONLY | O_CREAT, 0666);
 		if (out < 0) return -1;
 		have = 0;
 	}
 	have -= have % sizeof(zero);
 	if (lseek(out, (off_t)have, SEEK_SET) != (off_t)have) {
 		close(out);
-		unlint(part);
+		unlink(part);
 		return -1;
 	}
 	klog("reserving %llu MB (resume at %llu MB)", (unsigned long long)(want >> 20),
 	     (unsigned long long)(have >> 20));
 
-	snprint(msg, sizeof(msg), "Reserving %llu GB for Linux (one time only) ...",
+	snprintf(msg, sizeof(msg), "Reserving %llu GB for Linux (one time only) ...",
 	         (unsigned long long)gib);
 	if (progress_open(msg) < 0) {
 		close(out);
@@ -630,7 +630,7 @@ static int reserve(uint64_t want, uint64_t start, uint64_t gib)
 			uint64_t el = (now - t0) / 1000000, mb = (done - have) >> 20;
 			if (el >= 5 && mb) {
 				uint64_t left = ((want - done) >> 20) * el / mb;
-				snprint(msg, sizeof(msg),
+				snprintf(msg, sizeof(msg),
 				         "Reserving %llu GB for Linux (one time only) ...\n"
 				         "%llu MB/s, about %llu min %02llu s left",
 				         (unsigned long long)gib, (unsigned long long)(mb / el),
@@ -646,7 +646,7 @@ static int reserve(uint64_t want, uint64_t start, uint64_t gib)
 	progress_close();
 	if (rc != 0) {
 		if (werr == 28) {
-			unlint(part);
+			unlink(part);
 			dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
 			       "The PS4 drive is full.\n\nThe reservation was removed. Free up "
 			       "space, or launch again and choose a smaller size.");
@@ -657,7 +657,7 @@ static int reserve(uint64_t want, uint64_t start, uint64_t gib)
 		}
 		return -1;
 	}
-	if (file_size(part) != want || rename(part, ALOOC) != 0) {
+	if (file_size(part) != want || rename(part, ALLOC) != 0) {
 		dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
 		       "The space was written but could not be finished. Launch the app "
 		       "again.");
@@ -675,19 +675,19 @@ static int claim_boot_files(void)
 {
 	char from[288], to[320];
 	const char *shared[] = { "bzImage", "initramfs.cpio.gz", "bootargs.txt", "vram.txt", NULL };
-	mkdrs(STATE_DIR);
+	mkdirs(STATE_DIR);
 	for (int i = 0; shared[i]; i++) {
-		snprint(from, sizeof(from), BOOT_DIR "/%s", shared[i]);
+		snprintf(from, sizeof(from), BOOT_DIR "/%s", shared[i]);
 		if (!exists(from)) continue;
-		snprint(to, sizeof(to), BOOT_DIR "/%s.ps4linux-bak", shared[i]);
+		snprintf(to, sizeof(to), BOOT_DIR "/%s.ps4linux-bak", shared[i]);
 		if (exists(to)) {
 			klog("%s already backed up; leaving both", shared[i]);
 			continue;
 		}
 		if (rename(from, to) == 0) {
 			char line[400];
-			snprint(line, sizeof(line), "backup %s %s\n", shared[i], to);
-			int fd = open(STATE_DIR "/backups.txt", O_WRONLY | O_CREATE | O_APPEND, 0666);
+			snprintf(line, sizeof(line), "backup %s %s\n", shared[i], to);
+			int fd = open(STATE_DIR "/backups.txt", O_WRONLY | O_CREAT | O_APPEND, 0666);
 			if (fd >= 0) {
 				write(fd, line, strlen(line));
 				close(fd);
@@ -703,21 +703,21 @@ static int claim_boot_files(void)
 
 static int copy_file(int in, const char *dst, uint64_t *done, uint64_t total, const char *label)
 {
-	static unsigned char buff[4 * 1024 * 1024];
+	static unsigned char buf[4 * 1024 * 1024];
 	char part[288], msg[200];
-	snprint(part, sizeof(part), "%s.part", dst);
-	snprint(msg, sizeof(msg), "Copying %s ...", label);
+	snprintf(part, sizeof(part), "%s.part", dst);
+	snprintf(msg, sizeof(msg), "Copying %s ...", label);
 	progress_set(total ? (uint32_t)(*done * 100 / total) : 0, msg);
 
 	if (in < 0 || lseek(in, 0, SEEK_SET) != 0) return -1;
-	int out = open(part, O_WRONLY | O_CREATE | O_TRUNK, 0666);
+	int out = open(part, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 	if (out < 0) return -1;
 	ssize_t n;
 	int rc = 0;
-	while ((n = read(in, buff, sizeof(buff))) > 0) {
+	while ((n = read(in, buf, sizeof(buf))) > 0) {
 		ssize_t off = 0;
 		while (off < n) {
-			ssize_t w = write(out, buff + off, (size_t)(n - off));
+			ssize_t w = write(out, buf + off, (size_t)(n - off));
 			if (w <= 0) { rc = -1; break; }
 			off += w;
 		}
@@ -730,30 +730,27 @@ static int copy_file(int in, const char *dst, uint64_t *done, uint64_t total, co
 	close(out);
 	if (rc == 0 && file_size(part) != fd_size(in)) rc = -1;
 	if (rc == 0) {
-		unlint(dst);
+		unlink(dst);
 		if (rename(part, dst) != 0) rc = -1;
-		else chmode(dst, 0666);
+		else chmod(dst, 0666);
 	}
 	if (rc != 0) unlink(part);
 	return rc;
 }
 
 // ------------------------------------------------------------------ payload
-// Streams the payload from the package file straight into GoldHEN's BinLoader
-// socket. There is deliberately no size cap: the upstream AIO loader payloads
-// embed a kexec'd kernel and are several MB, so buffering one whole payload in
-// the app's memory was both wasteful and a limit that would have refused to send
-// the file at all.
 static int send_payload(int fd)
 {
-	static unsigned char buff[64 * 1024];
+	static unsigned char buf[512 * 1024];
 	uint64_t size = fd_size(fd);
-	if (size == 0 || lseek(fd, 0, SEEK_SET) != 0) return -1;
+	if (size == 0 || size > sizeof(buf) || lseek(fd, 0, SEEK_SET) != 0) return -1;
+	ssize_t n = read(fd, buf, (size_t)size);
+	if (n != (ssize_t)size) return -1;
 	sceNetInit();
 	int s = sceNetSocket("ps4linux-loader", ORBIS_NET_AF_INET, ORBIS_NET_SOCK_STREAM, 0);
 	if (s < 0) return -1;
 	struct { uint8_t len; uint8_t family; uint16_t port; uint32_t addr; uint8_t zero[8]; } sa;
-	memst(&sa, 0, sizeof(sa));
+	memset(&sa, 0, sizeof(sa));
 	sa.len = sizeof(sa);
 	sa.family = ORBIS_NET_AF_INET;
 	sa.port = sceNetHtons(9090);
@@ -763,32 +760,23 @@ static int send_payload(int fd)
 		return -1;
 	}
 	size_t off = 0;
-	uint64_t sent = 0;
-	int rc = 0;
-	ssize_t n;
-	while ((n = read(fd, buff, sizeof(buff))) > 0) {
-		off = 0;
-		while (off < (size_t)n) {
-			int w = sceNetSend(s, buff + off, (size_t)n - off, 0);
-			if (w <= 0) {
-				rc = -1;
-				break;
-			}
-			off += (size_t)w;
+	while (off < (size_t)n) {
+		int w = sceNetSend(s, buf + off, (size_t)n - off, 0);
+		if (w <= 0) {
+			sceNetSocketClose(s);
+			return -1;
 		}
-		if (rc) break;
-		sent += (uint64_t)n;
+		off += (size_t)w;
 	}
-	if (n < 0 || sent != size) rc = -1;
 	sceNetSocketClose(s);
-	if (rc == 0) klog("payload sent (%llu bytes)", (unsigned long long)sent);
-	return rc;
+	klog("payload sent (%zu bytes)", off);
+	return 0;
 }
 
 // ------------------------------------------------------------------ main
 int main(void)
 {
-	char path[288], buff[64];
+	char path[288], buf[64];
 	uint64_t start = 0;
 
 	sceSysmoduleLoadModule(ORBIS_SYSMODULE_MESSAGE_DIALOG);
@@ -798,9 +786,9 @@ int main(void)
 	// 1. package files
 	SRC[0] = 0;
 	for (size_t i = 0; i < sizeof(src_candidates) / sizeof(src_candidates[0]); i++) {
-		snprint(path, sizeof(path), "%s/bzImage", src_candidates[i]);
+		snprintf(path, sizeof(path), "%s/bzImage", src_candidates[i]);
 		if (exists(path)) {
-			snprint(SRC, sizeof(SRC), "%s", src_candidates[i]);
+			snprintf(SRC, sizeof(SRC), "%s", src_candidates[i]);
 			break;
 		}
 	}
@@ -814,7 +802,7 @@ int main(void)
 	int src_fd[N_BOOT_FILES], loader_fd = -1;
 	uint64_t total = 0;
 	for (size_t i = 0; i < N_BOOT_FILES; i++) {
-		snprint(path, sizeof(path), "%s/%s", SRC, boot_files[i]);
+		snprintf(path, sizeof(path), "%s/%s", SRC, boot_files[i]);
 		src_fd[i] = open(path, O_RDONLY);
 		if (src_fd[i] < 0) {
 			dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
@@ -829,9 +817,9 @@ int main(void)
 			total += fd_size(src_fd[i]);
 		}
 	}
-	snprint(path, sizeof(path), "%s/chromeos.img.state-start", SRC);
-	if (read_small(path, buff, sizeof(buff)) == 0)
-		start = strtoull(buff, NULL, 10);
+	snprintf(path, sizeof(path), "%s/chromeos.img.state-start", SRC);
+	if (read_small(path, buf, sizeof(buf)) == 0)
+		start = strtoull(buf, NULL, 10);
 
 	// 2. what is already here?
 	int installed = exists(MANIFEST) && exists(BOOT_DIR "/bzImage");
@@ -848,7 +836,7 @@ int main(void)
 
 	// 3. already installed -> just ask whether to start
 	if (installed) {
-		int r = dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTONS, "Start Linux", "Cancel",
+		int r = dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS, "Start Linux", "Cancel",
 		               "Linux is already installed on this console.\n\nStart Linux "
 		               "now?\n\nThe PS4 system restarts into Linux. Use Restart inside "
 		               "Linux to come back.");
@@ -885,7 +873,7 @@ int main(void)
 	uint64_t free_user = free_bytes(BOOT_DIR);
 	if (!free_user && goldhen_jailbreak() == 0)
 		free_user = free_bytes(BOOT_DIR);
-	uint64_t avail = free_user + file_size(ALOOC);
+	uint64_t avail = free_user + file_size(ALLOC);
 	avail = avail > RESERVE_FREE ? avail - RESERVE_FREE : 0;
 	if (!avail) {
 		dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
@@ -904,12 +892,12 @@ int main(void)
 		       "changed.\n\nDetails are in the GoldHEN log.");
 		quit();
 	}
-	mkdrs(BOOT_DIR);
-	mkdrs("/data/payloads");
+	mkdirs(BOOT_DIR);
+	mkdirs("/data/payloads");
 	if (progress_open("Copying PS4 Linux ...") < 0) quit();
 	uint64_t done = 0;
 	for (size_t i = 0; i < N_BOOT_FILES; i++) {
-		snprint(path, sizeof(path), BOOT_DIR "/%s", boot_files[i]);
+		snprintf(path, sizeof(path), BOOT_DIR "/%s", boot_files[i]);
 		if (copy_file(src_fd[i], path, &done, total, boot_files[i]) != 0) {
 			progress_close();
 			dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_OK, NULL, NULL,
@@ -937,15 +925,15 @@ int main(void)
 	if (gib) {
 		uint64_t want = img_bytes(start, gib);
 		if (reserve(want, start, gib) != 0) quit();
-		snprint(buff, sizeof(buff), "target=internal\nstate_gib=%llu\n",
+		snprintf(buf, sizeof(buf), "target=internal\nstate_gib=%llu\n",
 		         (unsigned long long)gib);
 	} else {
-		snprint(buff, sizeof(buff), "target=external\n");
+		snprintf(buf, sizeof(buf), "target=external\n");
 	}
-	write_small(STATE_DIR "/choice.txt", buff);
+	write_small(STATE_DIR "/choice.txt", buf);
 
 	char manifest[512];
-	snprint(manifest, sizeof(manifest),
+	snprintf(manifest, sizeof(manifest),
 	         "target=%s\nstate_gib=%llu\nstart=%llu\ninstalled=1\n",
 	         gib ? "internal" : "external", (unsigned long long)gib,
 	         (unsigned long long)start);
@@ -954,7 +942,7 @@ int main(void)
 	if (gib) settle_drive();
 
 	// 8. explicit confirmation before anything boots
-	int r = dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTONS, "Start Linux", "Not now",
+	int r = dialog(ORBIS_MSG_DIALOG_BUTTON_TYPE_2BUTTONS, "Start Linux", "Not now",
 	               "Setup is finished.\n\nStart Linux now?\n\nThe console restarts into "
 	               "Linux and finishes the install there (LED orange).\n\n"
 	               "If you choose \"Not now\", launch this app again when you are ready.");
