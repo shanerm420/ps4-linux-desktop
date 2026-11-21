@@ -44,7 +44,8 @@ touching the image and gives a shell.
 
 This works because the loader checks USB **first** — the flag is read before the
 internal image is even opened. From that shell you can mount the image, read
-`/var/log/`, fix `fstab`, or copy data off.
+`/var/log/`, fix `fstab`, or copy data off. **Recovery -> Rescue flag on a USB
+stick** in the app writes the file for you if the stick is already plugged in.
 
 ## Autoload: a Linux-only console, and the way back
 
@@ -70,6 +71,13 @@ Setup, once Linux starts correctly from the app:
 3. Run GoldHEN. Going into Linux instead of the payload menu is the confirmation;
    loading GoldHEN normally means autoload is not active yet.
 
+**What a boot does about it.** **Autoload -> Boot behaviour** in the app decides
+what happens when Linux starts with an entry still armed: `ask` leaves a note and
+the app asks on its next launch, `remove` deletes the known autoload files during
+the boot, `keep` does nothing. The initramfs reads it from
+`/data/linux/boot/autoload-policy`; the default is `ask`, because silently changing
+a GoldHEN setting is not this project's call.
+
 **The way back, and why it has to be planned.** With autoload on, this app cannot
 undo it: the app only runs after GoldHEN loads, and by then the payload has
 already taken the console.
@@ -80,8 +88,8 @@ already taken the console.
    payloads (NextHEN is the one reported working; PS4HEN Lite and Mira are the
    same idea), then FTP in and delete the entry plus the payload copy it names.
    If the entry is not firing — its payload is already gone, so the console boots
-   normally — **PS4 Linux Desktop** does this for you: it lists the entry, asks,
-   and deletes only that.
+   normally — **PS4 Linux** does this for you: **Autoload -> Remove the entry**
+   lists what is armed and deletes only that.
 3. Reboot, re-enable GoldHEN, and confirm the console stays on the home screen.
 4. From then on, start Linux from the app only — or turn autoload back on
    deliberately, knowing the above. If you deleted the payload itself to stop the
@@ -112,18 +120,19 @@ payload immediately shuts OrbisOS down and starts Linux, so the loop never ends.
 5. Launch Linux only from the app from then on.
 
 **If the loop is broken but the entry is still there** (the payload it names is
-gone, so GoldHEN loads normally again), launch **PS4 Linux Desktop**. It finds the
-entry, shows the path and offers to remove it: no FTP, no second enabler. It
-cannot remove an entry that is actively looping, because the app only runs after
-GoldHEN has loaded — and by then the payload has already taken the console.
+gone, so GoldHEN loads normally again), launch **PS4 Linux**. **Autoload -> Remove
+the entry** shows the path and deletes it: no FTP, no second enabler. It cannot
+remove an entry that is actively looping, because the app only runs after GoldHEN
+has loaded — and by then the payload has already taken the console.
 
 **Getting Linux back after the loop.** Breaking a loop usually means deleting the
 payload, which leaves the install with no loader — the app then has nothing to
 send. Put the file back (a fresh download in the root of a USB stick, or in
-`/data/payloads`) and launch **PS4 Linux Desktop**. It copies it next to the
-kernel as `ps4linux-loader.bin` and starts Linux. Nothing needs reinstalling: the
-image, your files and the settings are untouched, and autoload works again if you
-re-enable it.
+`/data/payloads`) and launch **PS4 Linux**. It copies it next to the kernel as
+`ps4linux-loader.bin` and starts Linux. Nothing needs reinstalling: the image,
+your files and the settings are untouched, and autoload works again if you re-enable
+it. **Recovery -> After a boot loop** in the app has the short version of this
+page.
 
 **Honest limits of this advice:** I could not verify NextHEN's supported-firmware
 matrix, so step 2 is not universal. The autoload path also differs by GoldHEN

@@ -1,4 +1,4 @@
-# PS4 Linux Desktop
+# PS4 Linux
 
 A full Linux distribution for jailbroken PS4 consoles, installed from a PS4 PKG.
 Replaces the ChromeOS-based installer with Debian + XFCE.
@@ -10,15 +10,15 @@ assuming anything works.
 
 | Area | State |
 |---|---|
-| Installer app source (`pkg/installer/`) | Written; type-checks against the real Orbis headers |
-| Installer app compiled to `eboot.bin` | **Built** — 121,920 bytes with clang 18 + `ld.lld` against `link.x` |
-| Installer PKG produced | **Built and validated** — `pkg_validate` 28/28; carries the real kernel, a real initramfs and the Debian/XFCE rootfs. The loader payload is still a placeholder |
-| Installer PKG installed on a console | **Not done** |
+| App source (`pkg/installer/`) | Written; type-checks against the real Orbis headers |
+| App compiled to `eboot.bin` | **Built** — 122,432 bytes with clang 18 + `ld.lld` against `link.x` |
+| PKG produced | **Built and validated** — `pkg_validate` 28/28; carries the real kernel, a real initramfs and the Debian/XFCE rootfs. The loader payload is still a placeholder |
+| PKG installed on a console | **Not done** |
 | ChromeOS detection / removal rules | **Implemented and tested** (24 assertions, synthetic tree) |
 | Hardware detection tool | **Built and run** on a normal Linux host |
 | Image validator (`scripts/check-image.sh`) | **Run** against real images: passes a good one, rejects an `orphan_file` one |
 | Kernel build (`scripts/build-kernel.sh`) | **Run** — produced a 14,251,008-byte `bzImage`, release `7.3.4-PS4Linux-baikal+` |
-| Initramfs built (`scripts/build-initramfs.sh`) | **Run** — 29,548,320 bytes from the feeRnt base, with the boot handoff spliced into its init |
+| Initramfs built (`scripts/build-initramfs.sh`) | **Run** — 29,548,535 bytes from the feeRnt base, with the boot handoff spliced into its init and the autoload policy step |
 | Debian rootfs built (`scripts/build-rootfs-rootless.sh`) | **Run** — Debian 13 + XFCE, 405 packages, 221,708,644-byte `rootfs.tar.zst` |
 | Debian rootfs booted on a PS4 | **Not done** |
 | Anything at all tested on PS4 hardware | **Nothing** |
@@ -30,19 +30,50 @@ is `untested`, because no console was available.
 
 | Package | TITLE_ID | What it does |
 |---|---|---|
-| PS4 Linux Desktop | `PS4LNX001` | Installs Linux: briefing, target, size, reserve, start. Re-launching it later changes the graphics memory size |
+| PS4 Linux | `PS4LNX001` | The app: installs Linux, starts it, and holds the menu for graphics memory, autoload and recovery |
 | PS4 Linux: Remove ChromeOS | `PS4LNX002` | Removes a ChromeOS-for-PS4 install, and nothing else |
 
-Separate on purpose. The installer never deletes a file that existed before it
-ran - its `unlink()` calls only clean up temporary files it created itself - so
-"install Linux" cannot erase an existing install, whatever the dialogs do. The
-remover is the only code that removes user data, it lists every path with its
-size first, and it asks twice. It cannot install anything.
+Separate on purpose. The app deletes nothing that existed before it ran - its
+`unlink()` calls only clean up temporary files it created itself - with one
+exception the user asks for by name: a payload autoload entry, which it lists
+first. The remover is the only code that removes a ChromeOS install, it lists
+every path with its size first, and it asks twice. It cannot install anything.
 
-If a ChromeOS install is present, the installer says so and installs beside it,
+If a ChromeOS install is present, the app says so and installs beside it,
 pointing at the remover for the space. Both apps are built from one tree:
 `make APP=install` and `make APP=remove`, which `scripts/make-pkg.sh` runs in
 sequence and cleans between, because the intermediate names are shared.
+
+## The menu
+
+Launching the app opens a menu with one entry per category, and each entry has its
+own submenu. Start Linux is always the first entry, so the everyday case stays one
+press away.
+
+| Entry | Submenu |
+|---|---|
+| Start Linux | none - it sends the loader and boots |
+| Graphics memory (VRAM) | show the current size, change it (1024/2048/3072/4096 MB) |
+| Autoload | check what is armed, remove the entry, boot behaviour |
+| Remove ChromeOS | what was found, and why the separate app does the deleting |
+| Recovery | write the rescue flag to a USB stick, what to do after a boot loop |
+| Install Linux | only when nothing is installed: briefing, target, size, reserve, start |
+
+The dialog API has two buttons and no list control, so a menu is one entry per
+screen: **Select** opens the entry shown, **Next** shows the next one.
+
+**Boot behaviour** (the third Autoload entry) decides what a *Linux start* does
+about an autoload entry - which matters because the app cannot run during a live
+loop:
+
+- `ask` (default) - leave the entry alone, leave a note, and this app offers to
+  remove it the next time it launches;
+- `remove` - delete the known autoload files during the boot, so a console that
+  reaches Linux cannot loop again;
+- `keep` - never touch them.
+
+It is stored in `/data/linux/boot/autoload-policy` and read by the initramfs before
+it switches to the root filesystem.
 
 ## Reference console
 
@@ -97,9 +128,10 @@ started Linux. So:
   payloads (NextHEN, PS4HEN Lite, Mira), FTP in, and delete both the entry and
   the payload copy it names.
 - If the entry is not currently firing - the payload it names is already gone, so
-  the console boots normally - **PS4 Linux Desktop** removes it for you: it lists
-  the file(s), asks, and deletes only those. No FTP and no second enabler. It
-  cannot do that during a live loop, because it only runs after GoldHEN loads.
+  the console boots normally - **PS4 Linux** removes it for you: it lists
+  the file(s), asks, and deletes only those (**Autoload -> Remove the entry**).
+  No FTP and no second enabler. It cannot do that during a live loop, because it
+  only runs after GoldHEN loads.
 - To get Linux back afterwards, put the payload file back - a fresh download in
   the root of a USB stick, or in `/data/payloads` - and launch this app. It copies
   it next to the kernel again and starts Linux. Nothing needs reinstalling: the
@@ -107,8 +139,9 @@ started Linux. So:
 - `docs/RECOVERY.md` has the same steps written for the case where the console is
   already looping.
 
-The installer warns if it finds an autoload entry and lists the paths, so you can
-see what is armed.
+The app checks for an autoload entry on every launch, and the Autoload menu lists
+the four known list files plus whatever sits in GoldHEN's autoload folder, so you
+can see exactly what is armed.
 
 ## Layout
 
@@ -136,8 +169,8 @@ sudo PROFILE=desktop bash scripts/make-test-usb.sh   # XFCE
 ```
 
 This deliberately uses the stock kernel and stock initramfs, so a failure is
-attributable. Our installer app, the PKG, the recovery flag and the `/opt` Mesa
-come in later stages.
+attributable. Our app, the PKG, the recovery flag and the `/opt` Mesa come in
+later stages.
 
 ## Build order
 
@@ -175,13 +208,15 @@ in a built toolchain. `make-pkg.sh` fails with a clear message if it is missing.
 |---|---|---|
 | Hardware tool builds, runs | `cc -O2 -Wall -Wextra -o hwprofile tools/hwprofile.c` | 0 warnings; reports "not a PS4" on a PC, as designed |
 | Removal rules | `tools/test-chromeos-scan.sh` | 24/24 assertions pass |
-| Installer type-checks | `cc -fsyntax-only -D__ORBIS__ -I$OO/include -isystem $OO/include/orbis pkg/installer/installer/main.c` | pass |
-| Shell scripts parse | `bash -n scripts/*.sh` | pass |
+| App type-checks | `cc -fsyntax-only -D__ORBIS__ -I$OO/include -isystem $OO/include/orbis pkg/installer/installer/main.c` | pass |
+| Shell scripts parse | `bash -n scripts/*.sh`, `sh -n initramfs/functions/55-ps4linux.sh` | pass |
 | Dummy kernel package builds | `dpkg-deb --build` | pass |
 | Kernel builds | `SB=baikal bash scripts/build-kernel.sh` | pass — `bzImage` 14,251,008 bytes, sha256 `a70b0935…b889`, `HdrS` at 0x202 |
-| Installer app compiles | `make APP=install` | pass — `eboot.bin`, 121,920 bytes |
-| Installer PKG builds and validates | `WITH_ROOTFS=1 bash scripts/make-pkg.sh`, `PkgTool.Core pkg_validate` | pass — 268,500,992 bytes, 28/28 checks OK, all four assets byte-identical to their sources |
+| App compiles | `make APP=install` | pass — `eboot.bin`, 122,432 bytes |
+| PKG builds and validates | `WITH_ROOTFS=1 bash scripts/make-pkg.sh`, `PkgTool.Core pkg_validate` | pass — 268,500,992 bytes, 28/28 checks OK, all four assets byte-identical to their sources |
+| Package title | read `TITLE` back out of the packaged `param.sfo` | pass — `PS4 Linux` |
 | Initramfs handoff is really in the init | unpack the packaged `initramfs.cpio.gz`, read `init` | pass — the block after the base's `mount ... /ps4hdd` calls `ps4linux_boot` |
+| Autoload policy is in the packaged initramfs | unpack, read `functions/55-ps4linux.sh` | pass — `ps4l_autoload_policy` present, `bin/zstd` still there |
 | Rootfs has a desktop and a login | unpack `rootfs.tar.zst` | pass — `systemd`, `xfce4-session`, `lightdm` (linked as `display-manager.service`), `Xorg`, user `ps4` |
 
 Not checked: installing a PKG on a console, and every hardware behaviour. The
@@ -194,17 +229,18 @@ replaced the package cannot boot.
 - **Graphics memory is a menu choice, not a file edit.** The loader reads `vram.txt`
   (a plain number in MB) next to the `bzImage`, and that file beats whichever
   payload was launched — which is why we ship one payload path and four numbers
-  instead of four payloads. The installer writes 1024 MB for the first start
+  instead of four payloads. The app writes 1024 MB for the first start
   (installing needs the RAM more than the GPU does) and offers 1024/2048/3072/4096
-  from the app afterwards. The PS4 has a single 8 GB pool: every megabyte given to
-  the GPU is taken from system memory.
+  from its Graphics memory menu afterwards. The PS4 has a single 8 GB pool: every
+  megabyte given to the GPU is taken from system memory.
 - **The loader payload is adopted, not shipped.** It is somebody else's binary,
   rebuilt per firmware, so the package carries a placeholder. Put a current
   payload (`ps4-linux-1gb.bin`, or the `.elf`) in the root of a USB stick or in
   `/data/payloads`; the app copies it next to the kernel as
-  `ps4linux-loader.bin` and starts Linux from its own button over BinLoader.
-  GoldHEN's payload menu is never opened, and no autoload entry is ever written —
-  which is what would make a console restart into Linux on every jailbreak.
+  `ps4linux-loader.bin` and starts Linux from its own Start Linux entry over
+  BinLoader. GoldHEN's payload menu is never opened, and no autoload entry is ever
+  written — which is what would make a console restart into Linux on every
+  jailbreak.
 - **The boot directory cannot be namespaced.** The loader's search path is fixed
   upstream, so we own `/data/linux/boot` explicitly and back up what was there.
   See `docs/LAYOUT.md`.
@@ -216,7 +252,8 @@ replaced the package cannot boot.
   kernel; `regulatory.db` there deadlocks the MediaTek driver and takes DHCP down
   with it.
 - **Never write a payload autoload entry.** A boot loop is the result. The app
-  warns if it finds one, and `docs/RECOVERY.md` has the escape route. Autoload is
+  lists what is armed and can remove it when asked, the boot side can do it under
+  the `remove` policy, and `docs/RECOVERY.md` has the escape route. Autoload is
   still available deliberately — it is GoldHEN's setting, not ours; see
   "Using the console as a computer only".
 
