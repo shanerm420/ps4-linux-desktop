@@ -62,6 +62,41 @@ Two traps that cost people a boot, both documented upstream:
   One branch covers Aeolia, Belize and Baikal; the southbridge is detected at
   runtime. `scripts/build-kernel.sh` clones exactly that and nothing else.
 
+## Using the console as a computer only
+
+Starting Linux is a deliberate press in the app, every time. If you want the
+opposite - a console that goes straight into Linux and never shows the PS4 menu -
+that is a supported choice, and it is made in GoldHEN, not here. The app never
+writes an autoload entry, because an entry that fires on every jailbreak is also
+how consoles end up in a restart loop.
+
+To turn it on, once Linux installs and starts correctly from the app:
+
+1. The app has already put the real payload in
+   `/data/payloads/ps4linux-loader.bin`, with a copy in
+   `/data/linux/boot/ps4linux-loader.bin`.
+2. In GoldHEN's settings, enable payload autoload and point it at that file. The
+   wording differs between GoldHEN builds, so check yours: some read a folder
+   (`/data/GoldHEN/autoload/`), others a list (`/data/GoldHEN/autoload.txt`,
+   `/data/bdj_autoload.cfg`, `/data/payloads/autoload.txt`).
+3. Restart the console and jailbreak. It should go straight to Linux. That is the
+   confirmation: if you still reach the PS4 home screen, autoload is not active.
+
+**Know the way back before you need it.** While autoload is on, the app cannot
+help you: GoldHEN fires the payload the moment it loads, so the home screen never
+appears for you to launch anything. To undo it:
+
+- Boot the console and do **not** run the exploit. You are in the normal PS4
+  system - games, saves, everything - just without homebrew.
+- To remove the entry itself, load a homebrew enabler that does not autoload
+  payloads (NextHEN, PS4HEN Lite, Mira), FTP in, and delete both the entry and
+  the payload copy it names.
+- `docs/RECOVERY.md` has the same steps written for the case where the console is
+  already looping.
+
+The installer warns if it finds an autoload entry and lists the paths, so you can
+see what is armed before you restart.
+
 ## Layout
 
 ```
@@ -168,7 +203,9 @@ replaced the package cannot boot.
   kernel; `regulatory.db` there deadlocks the MediaTek driver and takes DHCP down
   with it.
 - **Never write a payload autoload entry.** A boot loop is the result. The app
-  warns if it finds one, and `docs/RECOVERY.md` has the escape route.
+  warns if it finds one, and `docs/RECOVERY.md` has the escape route. Autoload is
+  still available deliberately — it is GoldHEN's setting, not ours; see
+  "Using the console as a computer only".
 
 ## Licensing
 
