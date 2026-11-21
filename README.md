@@ -12,14 +12,15 @@ assuming anything works.
 |---|---|
 | Installer app source (`pkg/installer/`) | Written; type-checks against the real Orbis headers |
 | Installer app compiled to `eboot.bin` | **Built** — 105,008 bytes with clang 18 + `ld.lld` against `link.x` |
-| Installer PKG produced | **Built and validated** — `pkg_validate` reports every hash and signature OK; carries the real kernel, but its initramfs and loader are still placeholders |
+| Installer PKG produced | **Built and validated** — `pkg_validate` 28/28; carries the real kernel, a real initramfs and the Debian/XFCE rootfs. The loader payload is still a placeholder |
 | Installer PKG installed on a console | **Not done** |
 | ChromeOS detection / removal rules | **Implemented and tested** (24 assertions, synthetic tree) |
 | Hardware detection tool | **Built and run** on a normal Linux host |
 | Image validator (`scripts/check-image.sh`) | **Run** against real images: passes a good one, rejects an `orphan_file` one |
 | Kernel build (`scripts/build-kernel.sh`) | **Run** — produced a 14,251,008-byte `bzImage`, release `7.3.4-PS4Linux-baikal+` |
-| Rootfs / initramfs build scripts | Written; **never run end to end** |
-| Debian rootfs built and booted on a PS4 | **Not done** |
+| Initramfs built (`scripts/build-initramfs.sh`) | **Run** — 29,548,320 bytes from the feeRnt base, with the boot handoff spliced into its init |
+| Debian rootfs built (`scripts/build-rootfs-rootless.sh`) | **Run** — Debian 13 + XFCE, 405 packages, 221,708,644-byte `rootfs.tar.zst` |
+| Debian rootfs booted on a PS4 | **Not done** |
 | Anything at all tested on PS4 hardware | **Nothing** |
 
 `docs/TEST-MATRIX.md` lists every hardware test with its real status. Every row
@@ -65,7 +66,8 @@ Two traps that cost people a boot, both documented upstream:
 
 ```
 pkg/installer/          the PS4 app (OpenOrbis C) + Makefile
-scripts/                build-kernel.sh, build-rootfs.sh, build-initramfs.sh, make-pkg.sh
+scripts/                build-kernel.sh, build-initramfs.sh, build-rootfs.sh,
+                        build-rootfs-rootless.sh, make-pkg.sh
 initramfs/              our boot/install function + the early recovery hook
 rootfs/                 files installed into the Debian image (apt pins, units, ICD json)
 tools/                  hwprofile.c (hardware truth), chromeos-scan.c (removal rules + test)
@@ -108,6 +110,9 @@ SB=baikal        bash scripts/build-kernel.sh          # -> out/kbuild/out/bzIma
 # already have a bzImage + .config? skip the build and point K at that directory:
 #   K=/path/to/kernel  bash scripts/make-pkg.sh
 PS4_MESA=...     bash scripts/build-rootfs.sh
+# or, on a host where you cannot be root:
+#                ZSTD=/path/to/static/zstd PROOT=/path/to/proot \
+#                  bash scripts/build-rootfs-rootless.sh
                  bash scripts/build-initramfs.sh
                  bash scripts/make-pkg.sh
 ```
@@ -127,12 +132,14 @@ in a built toolchain. `make-pkg.sh` fails with a clear message if it is missing.
 | Dummy kernel package builds | `dpkg-deb --build` | pass |
 | Kernel builds | `SB=baikal bash scripts/build-kernel.sh` | pass — `bzImage` 14,251,008 bytes, sha256 `a70b0935…b889`, `HdrS` at 0x202 |
 | Installer app compiles | `make APP=install` | pass — `eboot.bin`, 105,008 bytes |
-| Installer PKG builds and validates | `WITH_ROOTFS=0 bash scripts/make-pkg.sh`, `PkgTool.Core pkg_validate` | pass — 17,039,360 bytes, 28/28 checks OK, kernel inside the PKG matches the built one byte for byte |
+| Installer PKG builds and validates | `WITH_ROOTFS=1 bash scripts/make-pkg.sh`, `PkgTool.Core pkg_validate` | pass — 268,500,992 bytes, 28/28 checks OK, all four assets byte-identical to their sources |
+| Initramfs handoff is really in the init | unpack the packaged `initramfs.cpio.gz`, read `init` | pass — the block after the base's `mount ... /ps4hdd` calls `ps4linux_boot` |
+| Rootfs has a desktop and a login | unpack `rootfs.tar.zst` | pass — `systemd`, `xfce4-session`, `lightdm` (linked as `display-manager.service`), `Xorg`, user `ps4` |
 
-Not checked: any rootfs or initramfs build, installing a PKG on a console, and
-every hardware behaviour. The installer PKG is structurally valid but not
-bootable yet: `initramfs.cpio.gz` and `ps4linux-loader.bin` inside it are
-placeholders, marked as such in their own bytes.
+Not checked: installing a PKG on a console, and every hardware behaviour. The
+package now carries a real kernel, a real initramfs and a real Debian/XFCE
+rootfs; the one placeholder left is `ps4linux-loader.bin`, and until that is
+replaced the package cannot boot.
 
 ## Design decisions worth knowing before you change anything
 
