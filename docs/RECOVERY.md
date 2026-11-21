@@ -81,7 +81,9 @@ already taken the console.
    same idea), then FTP in and delete the entry plus the payload copy it names.
 3. Reboot, re-enable GoldHEN, and confirm the console stays on the home screen.
 4. From then on, start Linux from the app only — or turn autoload back on
-   deliberately, knowing the above.
+   deliberately, knowing the above. If you deleted the payload itself to stop the
+   loop, put the file back and launch the app: it restores the copy next to the
+   kernel.
 
 ## Boot loop after enabling payload autoload
 
@@ -105,6 +107,14 @@ payload immediately shuts OrbisOS down and starts Linux, so the loop never ends.
    `/data/bdj_autoload.cfg`, `/data/payloads/autoload.txt`.
 4. Reboot, re-enable GoldHEN, and confirm the console stays on the home screen.
 5. Launch Linux only from the app from then on.
+
+**Getting Linux back after the loop.** Breaking a loop usually means deleting the
+payload, which leaves the install with no loader — the app then has nothing to
+send. Put the file back (a fresh download in the root of a USB stick, or in
+`/data/payloads`) and launch **PS4 Linux Desktop**. It copies it next to the
+kernel as `ps4linux-loader.bin` and starts Linux. Nothing needs reinstalling: the
+image, your files and the settings are untouched, and autoload works again if you
+re-enable it.
 
 **Honest limits of this advice:** I could not verify NextHEN's supported-firmware
 matrix, so step 2 is not universal. The autoload path also differs by GoldHEN

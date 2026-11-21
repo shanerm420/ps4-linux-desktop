@@ -96,6 +96,10 @@ started Linux. So:
 - To remove the entry itself, load a homebrew enabler that does not autoload
   payloads (NextHEN, PS4HEN Lite, Mira), FTP in, and delete both the entry and
   the payload copy it names.
+- To get Linux back afterwards, put the payload file back - a fresh download in
+  the root of a USB stick, or in `/data/payloads` - and launch this app. It copies
+  it next to the kernel again and starts Linux. Nothing needs reinstalling: the
+  install, the image and your files are untouched.
 - `docs/RECOVERY.md` has the same steps written for the case where the console is
   already looping.
 
