@@ -64,11 +64,16 @@ Two traps that cost people a boot, both documented upstream:
 
 ## Using the console as a computer only
 
-Starting Linux is a deliberate press in the app, every time. If you want the
-opposite - a console that goes straight into Linux and never shows the PS4 menu -
-that is a supported choice, and it is made in GoldHEN, not here. The app never
-writes an autoload entry, because an entry that fires on every jailbreak is also
-how consoles end up in a restart loop.
+Starting Linux is a deliberate press in the app, every time. If you would rather
+have it start on its own, that is a supported choice - with one thing worth being
+precise about: **the console still boots into the PS4 system.** Autoload is a
+GoldHEN feature, so nothing happens until you run GoldHEN. Power the console on
+and you get the normal PS4 home screen, games and all; the moment the exploit
+loads, the payload fires and the console goes into Linux instead.
+
+That is also why it is set in GoldHEN and not here: the app never writes an
+autoload entry, because an entry that fires on every jailbreak is how consoles end
+up in a restart loop.
 
 To turn it on, once Linux installs and starts correctly from the app:
 
@@ -79,15 +84,15 @@ To turn it on, once Linux installs and starts correctly from the app:
    wording differs between GoldHEN builds, so check yours: some read a folder
    (`/data/GoldHEN/autoload/`), others a list (`/data/GoldHEN/autoload.txt`,
    `/data/bdj_autoload.cfg`, `/data/payloads/autoload.txt`).
-3. Restart the console and jailbreak. It should go straight to Linux. That is the
-   confirmation: if you still reach the PS4 home screen, autoload is not active.
+3. Run GoldHEN. Going into Linux instead of the payload menu is the confirmation;
+   if it loads GoldHEN normally, autoload is not active yet.
 
-**Know the way back before you need it.** While autoload is on, the app cannot
-help you: GoldHEN fires the payload the moment it loads, so the home screen never
-appears for you to launch anything. To undo it:
+**Know the way back before you need it.** With autoload on, this app cannot undo
+it: it only runs *after* GoldHEN loads, and by then the payload has already
+started Linux. So:
 
-- Boot the console and do **not** run the exploit. You are in the normal PS4
-  system - games, saves, everything - just without homebrew.
+- Power on and do **not** run the exploit. You are in the normal PS4 system, with
+  games, saves and the store, exactly as before.
 - To remove the entry itself, load a homebrew enabler that does not autoload
   payloads (NextHEN, PS4HEN Lite, Mira), FTP in, and delete both the entry and
   the payload copy it names.
@@ -95,7 +100,7 @@ appears for you to launch anything. To undo it:
   already looping.
 
 The installer warns if it finds an autoload entry and lists the paths, so you can
-see what is armed before you restart.
+see what is armed.
 
 ## Layout
 

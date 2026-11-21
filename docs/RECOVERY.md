@@ -48,10 +48,14 @@ internal image is even opened. From that shell you can mount the image, read
 
 ## Autoload: a Linux-only console, and the way back
 
-Payload autoload makes the console go straight into Linux: GoldHEN fires the
-payload the moment it loads, the loader shuts OrbisOS down, and Linux starts. For
-a console used as a computer and nothing else that is exactly right, and it is a
-setting in **GoldHEN**, never in this project — the app deliberately writes no
+Payload autoload makes Linux start as soon as GoldHEN loads: the payload fires,
+the loader shuts OrbisOS down, and Linux starts. **The console still powers on
+into the PS4 system** — autoload is a GoldHEN feature, so a console that is not
+jailbroken sits on the home screen exactly as before, games and all. Only running
+the exploit hands the console to Linux.
+
+For a console used as a computer and nothing else that is exactly right, and it is
+a setting in **GoldHEN**, never in this project — the app deliberately writes no
 autoload entry, because an entry that fires on every jailbreak is also how
 consoles end up restarting forever.
 
@@ -63,15 +67,15 @@ Setup, once Linux starts correctly from the app:
    wording and the location differ between GoldHEN builds: some read a folder
    (`/data/GoldHEN/autoload/`), others a list (`/data/GoldHEN/autoload.txt`,
    `/data/bdj_autoload.cfg`, `/data/payloads/autoload.txt`).
-3. Restart and jailbreak. Going straight to Linux is the confirmation; reaching
-   the home screen means autoload is not active yet.
+3. Run GoldHEN. Going into Linux instead of the payload menu is the confirmation;
+   loading GoldHEN normally means autoload is not active yet.
 
 **The way back, and why it has to be planned.** With autoload on, this app cannot
-undo it: GoldHEN fires the payload the instant it loads, so the PS4 home screen
-never appears for you to launch anything.
+undo it: the app only runs after GoldHEN loads, and by then the payload has
+already taken the console.
 
-1. Boot the console and do **not** run the exploit. The PS4 system comes up
-   normally — games, saves, the store — just without homebrew.
+1. Power on and do **not** run the exploit. The PS4 system comes up normally —
+   games, saves, the store — just without homebrew.
 2. To remove the entry itself, load a homebrew enabler that does not autoload
    payloads (NextHEN is the one reported working; PS4HEN Lite and Mira are the
    same idea), then FTP in and delete the entry plus the payload copy it names.
